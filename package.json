@@ -8,7 +8,7 @@
     "api"
   ],
   "scripts": {
-    "dev:cli": "npm run dev --workspace=cli",
+    "dev:cli": "npm run dev --workspace=cli --",
     "dev:server": "npm run dev --workspace=api",
     "build": "npm run build --workspaces",
     "typecheck": "npm run typecheck --workspaces"
