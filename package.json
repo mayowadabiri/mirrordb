@@ -1,0 +1,20 @@
+{
+  "name": "mirrordb",
+  "version": "1.0.0",
+  "private": true,
+  "description": "MirrorDB monorepo",
+  "workspaces": [
+    "cli",
+    "api"
+  ],
+  "scripts": {
+    "dev:cli": "npm run dev --workspace=cli",
+    "dev:server": "npm run dev --workspace=api",
+    "build": "npm run build --workspaces",
+    "typecheck": "npm run typecheck --workspaces"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "@types/node": "^20.0.0"
+  }
+}
