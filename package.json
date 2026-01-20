@@ -4,17 +4,21 @@
   "private": true,
   "description": "MirrorDB monorepo",
   "workspaces": [
-    "cli",
-    "api"
+    "apps/cli",
+    "apps/api",
+    "apps/web"
   ],
   "scripts": {
-    "dev:cli": "npm run dev --workspace=cli --",
-    "dev:server": "npm run dev --workspace=api",
+    "dev:cli": "npm run dev --workspace=apps/cli --",
+    "dev:api": "yarn workspace api dev",
+    "dev:web": "yarn workspace web dev",
+    "dev": "concurrently \"yarn dev:api\" \"yarn dev:web\"",
     "build": "npm run build --workspaces",
     "typecheck": "npm run typecheck --workspaces"
   },
   "devDependencies": {
-    "typescript": "^5.4.0",
-    "@types/node": "^20.0.0"
+    "@types/node": "^20.0.0",
+    "concurrently": "^9.2.1",
+    "typescript": "^5.4.0"
   }
 }

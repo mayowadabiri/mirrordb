@@ -1,0 +1,110 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id String @id @default(cuid())
+
+  // Core identity
+  email     String? @unique
+  username  String?
+  avatarUrl String?
+
+  // Status
+  isActive Boolean @default(true)
+
+  // Audit
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  devices       DeviceAuth[]
+  accounts      AuthAccount[]
+  refreshTokens RefreshToken[]
+
+  // MFA
+  mfaEnabled         Boolean           @default(false)
+  mfaSecretEncrypted String?
+  mfaConfirmedAt     DateTime?
+  mfaLastVerifiedAt  DateTime?
+  mfaSetupSessions   MfaSetupSession[]
+}
+
+model AuthAccount {
+  id String @id @default(cuid())
+
+  provider   AuthProvider
+  providerId String
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@unique([provider, providerId])
+}
+
+model DeviceAuth {
+  id String @id @default(cuid())
+
+  deviceCode String @unique
+  userCode   String @unique
+
+  status DeviceAuthStatus @default(PENDING)
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id])
+
+  expiresAt  DateTime
+  approvedAt DateTime?
+
+  createdAt DateTime @default(now())
+}
+
+enum DeviceAuthStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum AuthProvider {
+  GITHUB
+  GOOGLE
+}
+
+model RefreshToken {
+  id String @id @default(cuid())
+
+  tokenHash String @unique
+  userId    String
+  user      User   @relation(fields: [userId], references: [id])
+
+  expiresAt DateTime
+  revokedAt DateTime?
+
+  createdAt DateTime @default(now())
+}
+
+model MfaSetupSession {
+  id     String @id @default(cuid()) // this is setupId
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  expiresAt DateTime
+  usedAt    DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}

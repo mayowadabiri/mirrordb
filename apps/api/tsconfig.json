@@ -1,0 +1,17 @@
+{
+    "extends": "../../tsconfig.base.json",
+    "compilerOptions": {
+        "rootDir": "src",
+        "outDir": "dist",
+        "sourceMap": true,
+        "module": "ESNext",
+        "moduleResolution": "node",
+        "target": "ES2023",
+        "strict": true,
+        "esModuleInterop": true,
+        "ignoreDeprecations": "6.0"
+    },
+    "include": [
+        "src"
+    ]
+}
