@@ -1,8 +1,13 @@
-import "fastify";
-import { RequestUser } from ".";
+import 'fastify';
+import { User, Account } from '../../generated/prisma';
 
-declare module "fastify" {
+declare module 'fastify' {
     interface FastifyRequest {
-        user: RequestUser;
+
+        user: User & {
+            accounts: Account[];
+        };
+
+        deviceId: string;
     }
 }

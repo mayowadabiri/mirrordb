@@ -9,7 +9,6 @@ export const Route = createFileRoute('/mfa/$setupId/start')({
             const data = await getMfaSetup(params.setupId)
             return data
         } catch (error) {
-            // If setupId doesn't exist or is invalid, redirect to home
             throw redirect({
                 to: '/',
             })

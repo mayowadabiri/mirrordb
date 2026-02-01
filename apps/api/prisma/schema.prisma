@@ -33,12 +33,13 @@ model User {
   accounts      AuthAccount[]
   refreshTokens RefreshToken[]
 
-  // MFA
-  mfaEnabled         Boolean           @default(false)
-  mfaSecretEncrypted String?
-  mfaConfirmedAt     DateTime?
-  mfaLastVerifiedAt  DateTime?
-  mfaSetupSessions   MfaSetupSession[]
+  // MFA (ENROLLMENT ONLY)
+  mfaEnabled           Boolean               @default(false)
+  mfaSecretEncrypted   String?
+  mfaConfirmedAt       DateTime?
+  mfaSetupSessions     MfaSetupSession[]
+  mfaChallengeSessions MfaChallengeSession[]
+  databases            Database[]
 }
 
 model AuthAccount {
@@ -58,6 +59,7 @@ model AuthAccount {
 model DeviceAuth {
   id String @id @default(cuid())
 
+  // Device authorization flow
   deviceCode String @unique
   userCode   String @unique
 
@@ -66,10 +68,19 @@ model DeviceAuth {
   userId String?
   user   User?   @relation(fields: [userId], references: [id])
 
+  // Session lifecycle
   expiresAt  DateTime
   approvedAt DateTime?
+  revokedAt  DateTime?
 
-  createdAt DateTime @default(now())
+  // MFA VERIFICATION (PER SESSION)
+  mfaVerifiedAt DateTime?
+  mfaExpiresAt  DateTime?
+
+  createdAt            DateTime              @default(now())
+  mfaChallengeSessions MfaChallengeSession[]
+
+  @@index([userId])
 }
 
 enum DeviceAuthStatus {
@@ -87,17 +98,21 @@ model RefreshToken {
   id String @id @default(cuid())
 
   tokenHash String @unique
-  userId    String
-  user      User   @relation(fields: [userId], references: [id])
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
 
   expiresAt DateTime
   revokedAt DateTime?
 
   createdAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 model MfaSetupSession {
-  id     String @id @default(cuid()) // this is setupId
+  id String @id @default(cuid()) // setupId
+
   userId String
   user   User   @relation(fields: [userId], references: [id])
 
@@ -107,4 +122,137 @@ model MfaSetupSession {
   createdAt DateTime @default(now())
 
   @@index([userId])
+}
+
+model MfaChallengeSession {
+  id String @id @default(cuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  deviceAuthId String
+  deviceAuth   DeviceAuth @relation(fields: [deviceAuthId], references: [id])
+
+  status MfaChallengeStatus @default(PENDING)
+
+  expiresAt  DateTime
+  verifiedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([deviceAuthId])
+}
+
+enum MfaChallengeStatus {
+  PENDING
+  VERIFIED
+  EXPIRED
+}
+
+model Database {
+  id String @id @default(cuid())
+
+  // Ownership (current reality: user-owned)
+  ownerUserId String
+  ownerUser   User   @relation(fields: [ownerUserId], references: [id])
+
+  // Identity
+  name        String
+  engine      DatabaseEngine
+  environment DatabaseEnvironment
+
+  // Lifecycle
+  status DatabaseStatus @default(REGISTERED)
+
+  // Optional metadata
+  description String?
+  tags        String[]
+
+  // State timestamps
+  connectedAt DateTime?
+  verifiedAt  DateTime?
+
+  // Audit
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations (future-safe)
+  credentials DatabaseCredential[]
+  clones      DatabaseClone[]
+
+  @@unique([ownerUserId, name])
+  @@index([ownerUserId])
+}
+
+enum DatabaseEngine {
+  POSTGRES
+  MYSQL
+  MONGODB
+  SQLITE
+}
+
+enum DatabaseEnvironment {
+  PRODUCTION
+  STAGING
+  DEVELOPMENT
+}
+
+enum DatabaseStatus {
+  REGISTERED // db add
+  CONNECTED // db connect
+  VERIFIED // db verify
+  CLONED // at least one clone exists
+  DISABLED // manually disabled
+}
+
+model DatabaseCredential {
+  id String @id @default(cuid())
+
+  databaseId String
+  database   Database @relation(fields: [databaseId], references: [id])
+
+  type CredentialType
+
+  // Encrypted JSON payload (never plaintext)
+  encryptedPayload String
+
+  // Lifecycle
+  isActive  Boolean   @default(true)
+  rotatedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([databaseId])
+}
+
+enum CredentialType {
+  PASSWORD
+  SSL_CERT
+  IAM_ROLE
+}
+
+model DatabaseClone {
+  id String @id @default(cuid())
+
+  sourceDatabaseId String
+  sourceDatabase   Database @relation(fields: [sourceDatabaseId], references: [id])
+
+  status CloneStatus @default(PENDING)
+
+  // Target metadata (future)
+  targetEngine DatabaseEngine?
+  targetRegion String?
+
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  @@index([sourceDatabaseId])
+}
+
+enum CloneStatus {
+  PENDING
+  RUNNING
+  FAILED
+  COMPLETED
 }

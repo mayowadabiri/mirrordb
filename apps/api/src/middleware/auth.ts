@@ -1,20 +1,17 @@
 import { FastifyReply, FastifyRequest } from "fastify";
 import { UnauthorizedError } from "../utils/appError";
 import { verifyJWT } from "../utils/security";
-import chalk from "chalk";
 
-export async function authMiddleware(request: FastifyRequest, reply: FastifyReply) {
+export async function authMiddleware(request: FastifyRequest, _reply: FastifyReply) {
     const bearerToken = request.headers.authorization;
     const token = bearerToken?.split(" ")[1];
     if (!token) {
-        reply.code(401)
         throw new UnauthorizedError("Invalid token")
     }
 
     const decodedToken: object | null = verifyJWT(token)
 
     if (!decodedToken) {
-        reply.code(401)
         throw new UnauthorizedError("Invalid token")
     }
 
@@ -28,15 +25,9 @@ export async function authMiddleware(request: FastifyRequest, reply: FastifyRepl
     })
 
     if (!user) {
-        reply.code(401)
         throw new UnauthorizedError("Invalid token")
     }
 
-    request.user = {
-        ...user,
-        email: user.email ?? undefined,
-        username: user.username ?? undefined,
-        avatarUrl: user.avatarUrl ?? undefined,
-        providers: user.accounts.map((account) => account.provider as any)
-    }
+    request.user = user
+    request.deviceId = (decodedToken as { deviceId: string }).deviceId
 }

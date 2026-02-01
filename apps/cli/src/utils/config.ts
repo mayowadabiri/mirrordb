@@ -1,5 +1,5 @@
 import path from "node:path";
-import { MirrorConfig } from "../types.js";
+import { MirrorConfig } from "@mirrordb/types";
 import { CONFIG_FILE } from "./path.js";
 import fs from "node:fs";
 

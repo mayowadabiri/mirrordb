@@ -1,30 +1,25 @@
 import { useMutation } from "@tanstack/react-query";
 import axios from "axios";
-import { DeviceAuthResponse } from "../types.js";
+import { ApiErrorResponse } from "@mirrordb/types";
 import { post } from "./axios.js";
 
-export interface ApiError {
-  success: false;
-  error: {
-    code: string;
-    message: string;
-    details?: unknown;
-    stack?: string;
-  };
+// Response from the device verify endpoint (specific to web auth flow)
+interface DeviceVerifyResponse {
+  token: string;
 }
 
 const validateDeviceCode = async (
   code: string
-): Promise<DeviceAuthResponse> => {
+): Promise<DeviceVerifyResponse> => {
   try {
-    const response = await post<DeviceAuthResponse>("/api/auth/device/verify", {
+    const response = await post<DeviceVerifyResponse>("/api/auth/device/verify", {
       code,
     });
     return response.data;
   } catch (error) {
     if (axios.isAxiosError(error) && error.response?.data) {
-      const apiError = error.response.data as ApiError;
-      throw new Error(apiError.error.message);
+      const apiError = error.response.data as ApiErrorResponse;
+      throw new Error(apiError.message || "Failed to validate device code");
     }
     throw new Error("Failed to validate device code");
   }

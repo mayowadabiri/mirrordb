@@ -2,6 +2,7 @@ import { FastifyInstance } from "fastify";
 import {
   checkDeviceStatus,
   generateVerificationUrl,
+  validateGithubState,
   verifiyUserCode,
 } from "../../services/auth/devices.js";
 import {
@@ -10,7 +11,7 @@ import {
 } from "../../schemas/auth/devices.js";
 import { createSuccessResponse } from "../../utils/response.js";
 
-export async function deviceRoutes(app: FastifyInstance) {
+export const deviceRoutes = (app: FastifyInstance) => {
   app.post(
     "/start",
     {
@@ -41,6 +42,15 @@ export async function deviceRoutes(app: FastifyInstance) {
       return createSuccessResponse(result, "Device code verified successfully");
     }
   );
+
+  app.get("/oauth/github/callback", async (request, reply) => {
+    const query = request.query as {
+      state: string;
+      code: string;
+    };
+    await validateGithubState(app.prisma, query);
+    reply.redirect(`${process.env.APP_URL}/auth/success`);
+  });
 
   app.get<{ Params: { deviceCode: string } }>("/:deviceCode/status", async (request, reply) => {
     const result = await checkDeviceStatus(app.prisma, request.params.deviceCode);

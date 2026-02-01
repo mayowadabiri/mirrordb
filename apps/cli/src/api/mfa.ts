@@ -1,4 +1,4 @@
-import { ApiSuccessResponse } from "../types.js";
+import { ApiSuccessResponse } from "@mirrordb/types";
 import axiosInstance from "../utils/axios.js";
 
 interface MfaSetupResponse {
@@ -12,25 +12,48 @@ interface MfaSetupStatus {
   expired: boolean;
 }
 
+interface MfaChallengeResponse {
+  challengeId: string;
+  expiresAt: string;
+  verification_url: string;
+}
+
 export const startMfaSetup = async () => {
-  try {
-    const response =
-      await axiosInstance.post<ApiSuccessResponse<MfaSetupResponse>>(
-        "/api/mfa/cli/start",
-      );
-    return response.data.data;
-  } catch (error) {
-    throw new Error("Failed to create device code");
-  }
+  const response =
+    await axiosInstance.post<ApiSuccessResponse<MfaSetupResponse>>(
+      "/mfa/cli/start",
+    );
+  return response.data.data;
+
 };
 
 export const getMfaSetupStatus = async (setupId: string) => {
-  try {
-    const response = await axiosInstance.get<
-      ApiSuccessResponse<MfaSetupStatus>
-    >(`/api/mfa/cli/${setupId}/status`);
-    return response.data.data;
-  } catch (error) {
-    throw new Error("Failed to get MFA setup status");
-  }
+  const response = await axiosInstance.get<
+    ApiSuccessResponse<MfaSetupStatus>
+  >(`/mfa/cli/setup/${setupId}/status`);
+  return response.data.data;
+
 };
+
+
+export const challengeMfa = async () => {
+  const response = await axiosInstance.post<ApiSuccessResponse<MfaChallengeResponse>>(
+    "/mfa/cli/challenge",
+  );
+  return response.data.data;
+};
+
+export const getMfaChallengeStatus = async (challengeId: string) => {
+  const response = await axiosInstance.get<
+    ApiSuccessResponse<{ status: string }>
+  >(`/mfa/cli/challenge/${challengeId}/status`);
+  return response.data.data;
+
+};
+
+export const getMfaSession = async () => {
+  const response = await axiosInstance.get<ApiSuccessResponse<{ ok: boolean }>>(
+    `/mfa/cli/session`
+  );
+  return response.data.data;
+}

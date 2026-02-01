@@ -1,18 +1,17 @@
 import axios, { AxiosResponse } from "axios";
 
-import { ApiSuccessResponse } from "../types";
+import { ApiSuccessResponse } from "@mirrordb/types";
 
-const baseURL = import.meta.env.VITE_API_URL;
+const baseURL = import.meta.env.VITE_API_URL as string;
 
 const axiosInstance = axios.create({
   baseURL: baseURL,
   timeout: 5000,
 });
 
-const handleResponse = <T>(response: AxiosResponse): ApiSuccessResponse<T> => {
+const handleResponse = <T>(response: AxiosResponse<ApiSuccessResponse<T>>): ApiSuccessResponse<T> => {
   return {
     data: response.data.data,
-    message: response.data.message,
     success: response.data.success,
   };
 };

@@ -1,11 +1,10 @@
 import crypto from "node:crypto";
-import jwt from "jsonwebtoken";
 import ms from "ms";
-import { PrismaClient, User } from "../../generated/prisma";
+import { DeviceAuth, PrismaClient } from "../../generated/prisma";
 import { generateJWT } from "./security";
 
-export const generateSession = async (prisma: PrismaClient, user: User) => {
-    const accessToken = generateJWT({ sub: user.id })
+export const generateSession = async (prisma: PrismaClient, deviceAuth: DeviceAuth) => {
+    const accessToken = generateJWT({ sub: deviceAuth.userId, deviceId: deviceAuth.id })
 
     const refreshToken = crypto.randomBytes(64).toString("hex");
     const refreshTokenHash = crypto
@@ -18,7 +17,7 @@ export const generateSession = async (prisma: PrismaClient, user: User) => {
     await prisma.refreshToken.create({
         data: {
             tokenHash: refreshTokenHash,
-            userId: user.id,
+            userId: deviceAuth.userId!,
             expiresAt,
         },
     });

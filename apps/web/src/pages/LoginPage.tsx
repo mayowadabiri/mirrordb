@@ -7,7 +7,7 @@ export default function LoginPage() {
         const clientId = import.meta.env.VITE_GITHUB_CLIENT_ID
         const apiUrl = import.meta.env.VITE_API_URL
         const redirectUri = encodeURIComponent(
-            `${apiUrl}/api/auth/oauth/github/callback`
+            `${apiUrl}/api/auth/device/oauth/github/callback`
         )
 
         window.location.href =

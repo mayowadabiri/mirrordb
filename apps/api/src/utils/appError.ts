@@ -45,8 +45,8 @@ export class ForbiddenError extends AppError {
 }
 
 export class NotFoundError extends AppError {
-  constructor(resource: string = "Resource") {
-    super(404, `${resource} not found`, "NOT_FOUND");
+  constructor(message: string = "Resource not found", data?: object) {
+    super(404, message, "NOT_FOUND", data);
     this.name = "NotFoundError";
   }
 }
@@ -59,8 +59,8 @@ export class ConflictError extends AppError {
 }
 
 export class GoneError extends AppError {
-  constructor(message: string) {
-    super(410, message, "GONE");
+  constructor(message: string, data?: object) {
+    super(410, message, "GONE", data);
     this.name = "GoneError";
   }
 }
@@ -73,15 +73,15 @@ export class UnprocessableEntityError extends AppError {
 }
 
 export class TooManyRequestsError extends AppError {
-  constructor(message: string = "Too many requests, please try again later") {
-    super(429, message, "TOO_MANY_REQUESTS");
+  constructor(message: string = "Too many requests, please try again later", data?: object) {
+    super(429, message, "TOO_MANY_REQUESTS", data);
     this.name = "TooManyRequestsError";
   }
 }
 
 export class InternalServerError extends AppError {
-  constructor(message: string = "Internal server error") {
-    super(500, message, "INTERNAL_SERVER_ERROR");
+  constructor(message: string = "Internal server error", data?: object) {
+    super(500, message, "INTERNAL_SERVER_ERROR", data);
     this.name = "InternalServerError";
   }
 }

@@ -15,6 +15,7 @@ import { Route as AuthSuccessRouteImport } from './routes/auth/success'
 import { Route as AuthLoginRouteImport } from './routes/auth/login'
 import { Route as MfaSetupIdVerifyRouteImport } from './routes/mfa/$setupId.verify'
 import { Route as MfaSetupIdStartRouteImport } from './routes/mfa/$setupId.start'
+import { Route as MfaChallengeChallengeIdVerifyRouteImport } from './routes/mfa/challenge.$challengeId.verify'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -46,6 +47,12 @@ const MfaSetupIdStartRoute = MfaSetupIdStartRouteImport.update({
   path: '/mfa/$setupId/start',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MfaChallengeChallengeIdVerifyRoute =
+  MfaChallengeChallengeIdVerifyRouteImport.update({
+    id: '/mfa/challenge/$challengeId/verify',
+    path: '/mfa/challenge/$challengeId/verify',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -54,6 +61,7 @@ export interface FileRoutesByFullPath {
   '/start/device': typeof StartDeviceRoute
   '/mfa/$setupId/start': typeof MfaSetupIdStartRoute
   '/mfa/$setupId/verify': typeof MfaSetupIdVerifyRoute
+  '/mfa/challenge/$challengeId/verify': typeof MfaChallengeChallengeIdVerifyRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -62,6 +70,7 @@ export interface FileRoutesByTo {
   '/start/device': typeof StartDeviceRoute
   '/mfa/$setupId/start': typeof MfaSetupIdStartRoute
   '/mfa/$setupId/verify': typeof MfaSetupIdVerifyRoute
+  '/mfa/challenge/$challengeId/verify': typeof MfaChallengeChallengeIdVerifyRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -71,6 +80,7 @@ export interface FileRoutesById {
   '/start/device': typeof StartDeviceRoute
   '/mfa/$setupId/start': typeof MfaSetupIdStartRoute
   '/mfa/$setupId/verify': typeof MfaSetupIdVerifyRoute
+  '/mfa/challenge/$challengeId/verify': typeof MfaChallengeChallengeIdVerifyRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -81,6 +91,7 @@ export interface FileRouteTypes {
     | '/start/device'
     | '/mfa/$setupId/start'
     | '/mfa/$setupId/verify'
+    | '/mfa/challenge/$challengeId/verify'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -89,6 +100,7 @@ export interface FileRouteTypes {
     | '/start/device'
     | '/mfa/$setupId/start'
     | '/mfa/$setupId/verify'
+    | '/mfa/challenge/$challengeId/verify'
   id:
     | '__root__'
     | '/'
@@ -97,6 +109,7 @@ export interface FileRouteTypes {
     | '/start/device'
     | '/mfa/$setupId/start'
     | '/mfa/$setupId/verify'
+    | '/mfa/challenge/$challengeId/verify'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -106,6 +119,7 @@ export interface RootRouteChildren {
   StartDeviceRoute: typeof StartDeviceRoute
   MfaSetupIdStartRoute: typeof MfaSetupIdStartRoute
   MfaSetupIdVerifyRoute: typeof MfaSetupIdVerifyRoute
+  MfaChallengeChallengeIdVerifyRoute: typeof MfaChallengeChallengeIdVerifyRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -152,6 +166,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MfaSetupIdStartRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/mfa/challenge/$challengeId/verify': {
+      id: '/mfa/challenge/$challengeId/verify'
+      path: '/mfa/challenge/$challengeId/verify'
+      fullPath: '/mfa/challenge/$challengeId/verify'
+      preLoaderRoute: typeof MfaChallengeChallengeIdVerifyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -162,6 +183,7 @@ const rootRouteChildren: RootRouteChildren = {
   StartDeviceRoute: StartDeviceRoute,
   MfaSetupIdStartRoute: MfaSetupIdStartRoute,
   MfaSetupIdVerifyRoute: MfaSetupIdVerifyRoute,
+  MfaChallengeChallengeIdVerifyRoute: MfaChallengeChallengeIdVerifyRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -14,6 +14,15 @@ import rateLimitPlugin from "./plugins/rateLimit.js";
 import healthRoutes from "./routes/health.js";
 import { authRoutes } from "./routes/auth/index.js";
 import { getErrorCode } from "./utils/errors.js";
+import type { FastifyError } from "fastify";
+import { ApiErrorResponse } from "@mirrordb/types";
+import { AppError } from "./utils/appError.js";
+import { authMiddleware } from "./middleware/auth.js";
+import { mfaCliRoutes } from "./routes/mfa/cli.js";
+import { mfaBrowserRoutes } from "./routes/mfa/browser.js";
+import { sessionRoute } from "./routes/session.js";
+import { dbRoutes } from "./routes/db/index.js";
+
 
 const fastify = Fastify({
   logger: true,
@@ -48,12 +57,6 @@ await fastify.register(sensible);
 await fastify.register(compress, { global: true });
 
 // Error handler following REST API conventions
-import type { FastifyError } from "fastify";
-import { ApiErrorResponse } from "./types/index.js";
-import { AppError } from "./utils/appError.js";
-import { authMiddleware } from "./middleware/auth.js";
-import { mfaCliRoutes } from "./routes/mfa/cli.js";
-import { mfaBrowserRoutes } from "./routes/mfa/browser.js";
 
 fastify.setErrorHandler((error: FastifyError | AppError, request, reply) => {
   const isDev = process.env.NODE_ENV === "development";
@@ -73,12 +76,9 @@ fastify.setErrorHandler((error: FastifyError | AppError, request, reply) => {
   if (error instanceof AppError) {
     const errorResponse: ApiErrorResponse = {
       success: false,
-      error: {
-        code: error.code,
-        message: error.message,
-        ...(error.data && { details: error.data }),
-        ...(isDev && error.stack && { stack: error.stack }),
-      },
+      statusCode: error.code,
+      message: error.message,
+      details: error.data,
     };
     return reply.status(error.statusCode).send(errorResponse);
   }
@@ -89,23 +89,19 @@ fastify.setErrorHandler((error: FastifyError | AppError, request, reply) => {
   // Build error response
   const errorResponse: ApiErrorResponse = {
     success: false,
-    error: {
-      code: error.code ?? getErrorCode(statusCode),
-      message:
-        statusCode >= 500 && !isDev ? "Internal Server Error" : error.message,
-    },
+    statusCode: error.code ?? getErrorCode(statusCode),
+    message:
+      statusCode >= 500 && !isDev ? "Internal Server Error" : error.message,
+    details: error.validation,
   };
 
   // Include validation errors if present
   if (error.validation) {
-    errorResponse.error.code = "VALIDATION_ERROR";
-    errorResponse.error.details = error.validation;
+    errorResponse.statusCode = "VALIDATION_ERROR";
+    errorResponse.details = error.validation;
   }
 
-  // Include stack trace in development
-  if (isDev && error.stack) {
-    errorResponse.error.stack = error.stack;
-  }
+
 
   reply.status(statusCode).send(errorResponse);
 });
@@ -123,6 +119,8 @@ await fastify.register(healthRoutes);
 fastify.register(async (instance) => {
   instance.addHook("preHandler", authMiddleware);
   await instance.register(mfaCliRoutes, { prefix: "/api/mfa/cli" });
+  await instance.register(sessionRoute, { prefix: "/api/session" });
+  await instance.register(dbRoutes, { prefix: "/api/db" });
 });
 
 await fastify.register(mfaBrowserRoutes, { prefix: "/api/mfa/browser" });

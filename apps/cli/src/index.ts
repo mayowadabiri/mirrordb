@@ -1,8 +1,13 @@
 import { createProgram } from "./program.js";
 
-try {
-  const program = createProgram();
-  program.parse(process.argv);
-} catch (error) {
+(async () => {
+  try {
+    const program = createProgram();
+    await program.parseAsync(process.argv);
+  } catch (error) {
+    console.error(error);
+    process.exit(1);
+  }
+})().catch(() => {
   process.exit(1);
-}
+});

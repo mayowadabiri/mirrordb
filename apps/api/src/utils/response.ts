@@ -1,4 +1,4 @@
-import type { ApiSuccessResponse } from "../types/index.js";
+import type { ApiSuccessResponse } from "@mirrordb/types";
 
 /**
  * Helper function to create a standardized success response
