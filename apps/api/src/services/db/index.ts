@@ -1,6 +1,5 @@
 import { DatabaseEngine, DatabaseStatus, PrismaClient, User } from "../../../generated/prisma";
 import { AddDbPayload, DbCredentialsMethod, DbCredentialsPayload } from "@mirrordb/types";
-import type { HostDbCredentials as _HostDbCredentials, UriDbCredentials as _UriDbCredentials } from "@mirrordb/types";
 import { BadRequestError } from "../../utils/appError";
 import { Client } from "pg"
 import { encrypt } from "../../utils/security";
@@ -118,7 +117,7 @@ export const connectDatabase = async (
 
             await validatePgConnection(client)
         } else if (database.engine === DatabaseEngine.MYSQL) {
-            const creds = body as HostDbCredentials
+            const creds = body
             await validateMySqlConnection({
                 host: creds.host,
                 port: creds.port,
