@@ -169,6 +169,8 @@ model Database {
   description String?
   tags        String[]
 
+
+
   // State timestamps
   connectedAt DateTime?
   verifiedAt  DateTime?
@@ -180,6 +182,7 @@ model Database {
   // Relations (future-safe)
   credentials DatabaseCredential[]
   clones      DatabaseClone[]
+  forks       ForkedDatabase[]
 
   @@unique([ownerUserId, name])
   @@index([ownerUserId])
@@ -232,23 +235,41 @@ enum CredentialType {
   IAM_ROLE
 }
 
+
+model ForkedDatabase {
+  id String @id @default(cuid())
+
+  sourceDatabaseId String
+  sourceDatabase   Database @relation(fields: [sourceDatabaseId], references: [id])
+
+  encryptedPayload String?
+
+  // Metadata
+  name      String
+  createdAt DateTime @default(now())
+
+  // Relation to the clone/operation record
+  clone DatabaseClone?
+}
+
 model DatabaseClone {
   id String @id @default(cuid())
 
   sourceDatabaseId String
   sourceDatabase   Database @relation(fields: [sourceDatabaseId], references: [id])
 
+  // Optional: The active ephemeral fork (if it still exists)
+  forkedDatabaseId String? @unique
+  forkedDatabase   ForkedDatabase? @relation(fields: [forkedDatabaseId], references: [id], onDelete: SetNull)
+
   status CloneStatus @default(PENDING)
-
-  // Target metadata (future)
-  targetEngine DatabaseEngine?
-  targetRegion String?
-
+  
   createdAt   DateTime  @default(now())
   completedAt DateTime?
 
   @@index([sourceDatabaseId])
 }
+
 
 enum CloneStatus {
   PENDING

@@ -1,9 +1,10 @@
-import { DatabaseEngine, DatabaseStatus, PrismaClient, User } from "../../../generated/prisma";
+import { DatabaseClone, DatabaseEngine, DatabaseStatus, PrismaClient, User } from "../../../generated/prisma";
 import { AddDbPayload, DbCredentialsMethod, DbCredentialsPayload } from "@mirrordb/types";
 import { BadRequestError } from "../../utils/appError";
 import { Client } from "pg"
 import { encrypt } from "../../utils/security";
 import { validateMongoConnection, validatePgConnection, validateMySqlConnection } from "../../utils/dbConnector";
+import { prisma } from "../../lib/prisma";
 
 
 export const addDatabase = async (prisma: PrismaClient, user: User, body: AddDbPayload) => {
@@ -168,3 +169,79 @@ export const connectDatabase = async (
         };
     });
 };
+
+
+export const forkDatabase = async (prisma: PrismaClient, id: string, userId: string) => {
+    const sourceDb = await prisma.database.findUnique({
+        where: {
+            id,
+            ownerUserId: userId,
+        },
+    });
+
+    if (!sourceDb) {
+        throw new BadRequestError("Database not found", {
+            code: "DATABASE_NOT_FOUND",
+        });
+    }
+
+    const credentials = await prisma.databaseCredential.findFirst({
+        where: {
+            databaseId: id,
+            isActive: true,
+        },
+    });
+
+    if (!credentials) {
+        throw new BadRequestError("Database credentials not found", {
+            code: "DATABASE_CREDENTIALS_NOT_FOUND",
+        });
+    }
+
+    return prisma.$transaction(async (tx) => {
+        const forkedDb = await tx.forkedDatabase.create({
+            data: {
+                name: `${sourceDb.name}-fork-${Date.now()}`, // Temporary name for internal use
+                sourceDatabaseId: sourceDb.id,
+            },
+        });
+
+        const cloned = await tx.databaseClone.create({
+            data: {
+                sourceDatabaseId: sourceDb.id,
+                forkedDatabaseId: forkedDb.id,
+                status: "PENDING",
+            },
+        });
+
+        return {
+            cloneId: cloned.id,
+        };
+    });
+}
+
+
+export const updateForkedDatabase = async (databaseId: string, payload: object) => {
+
+    await prisma.forkedDatabase.update({
+        where: {
+            id: databaseId
+        },
+        data: {
+            ...payload
+        }
+    })
+}
+
+
+export const updateDatabaseCloneStatus = async (cloneId: string, payload: DatabaseClone) => {
+    console.log(payload)
+    await prisma.databaseClone.update({
+        where: {
+            id: cloneId
+        },
+        data: {
+            ...payload
+        }
+    })
+}

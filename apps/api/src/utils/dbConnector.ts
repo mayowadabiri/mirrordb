@@ -1,9 +1,7 @@
-// import { Client } from "pg";
 import { Client } from "pg";
 import { BadRequestError } from "./appError";
 import { MongoClient } from "mongodb";
 import mysql from "mysql2/promise";
-// import { MongoClient } from "mongodb";
 
 export const validatePgConnection = async (client: Client) => {
     try {
@@ -69,3 +67,24 @@ export const validateMySqlConnection = async (config: mysql.ConnectionOptions) =
         }
     }
 };
+
+
+
+export async function assertTablesExist(client: Client) {
+
+    try {
+        await client.connect();
+
+        const result = await client.query(`
+      SELECT COUNT(*)::int AS table_count
+      FROM information_schema.tables
+      WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
+    `);
+
+        if (result.rows[0].table_count === 0) {
+            throw new BadRequestError("No tables found in forked database");
+        }
+    } finally {
+        await client.end();
+    }
+}

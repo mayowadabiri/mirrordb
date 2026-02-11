@@ -2,12 +2,13 @@ import { Command } from "commander";
 import { authGuard } from "../../hooks/authGuard.js";
 import { mfaGuard } from "../../hooks/mfaGuard.js";
 import { readConfig } from "../../utils/config.js";
-import { getDatabase } from "../../api/db.js";
+import { forkDatabase, getDatabase, streamFork, tunnelCloneDb } from "../../api/db.js";
 import chalk from "chalk";
 import { Database, DatabaseStatus } from "@mirrordb/types";
 import prompts from "prompts";
 import Table from "cli-table3";
 import { format } from "date-fns";
+import { ForkProgressManager } from "../../utils/forkProgress.js";
 
 async function showForkIntent(db: Database): Promise<boolean> {
     console.log(chalk.yellow("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"));
@@ -17,7 +18,7 @@ async function showForkIntent(db: Database): Promise<boolean> {
     console.log(chalk.white("Source database:\n"));
 
     const table = new Table({
-        colWidths: [20, 50]
+        colWidths: [20, 50],
     });
 
     table.push(
@@ -27,7 +28,10 @@ async function showForkIntent(db: Database): Promise<boolean> {
         [chalk.gray("Environment"), chalk.white(db.environment)],
         [chalk.gray("Status"), chalk.green(db.status)],
         [chalk.gray("Description"), chalk.white(db.description || "N/A")],
-        [chalk.gray("Created"), chalk.white(format(new Date(db.createdAt), "PPpp"))]
+        [
+            chalk.gray("Created"),
+            chalk.white(format(new Date(db.createdAt), "PPpp")),
+        ],
     );
 
     console.log(table.toString());
@@ -36,7 +40,9 @@ async function showForkIntent(db: Database): Promise<boolean> {
     console.log(chalk.gray("  • A private copy of the database will be created"));
     console.log(chalk.gray("  • Data will be READ from the source database"));
     console.log(chalk.gray("  • The source database will NOT be modified"));
-    console.log(chalk.gray("  • The forked database will be isolated and temporary"));
+    console.log(
+        chalk.gray("  • The forked database will be isolated and temporary"),
+    );
 
     console.log(chalk.yellow("\nThis action is audited.\n"));
 
@@ -67,7 +73,11 @@ export function forkDatabaseCommand(): Command {
                     const config = readConfig();
                     if (!config?.database?.id) {
                         console.log(chalk.red("No active database found."));
-                        console.log(chalk.gray("Either provide a database name/ID or connect to a database first."));
+                        console.log(
+                            chalk.gray(
+                                "Either provide a database name/ID or connect to a database first.",
+                            ),
+                        );
                         console.log(chalk.gray("Run: mirror db connect <database>"));
                         process.exit(0);
                     }
@@ -77,11 +87,14 @@ export function forkDatabaseCommand(): Command {
                 console.log(chalk.blue("Fetching database information..."));
                 const db = await getDatabase(databaseId);
 
-
                 if (db.status !== DatabaseStatus.CONNECTED) {
-                    console.log(chalk.red("Database is not connected"))
-                    console.log(chalk.gray("Run: mirror db connect <database> or add --auto-connect flag to this command"))
-                    process.exit(0)
+                    console.log(chalk.red("Database is not connected"));
+                    console.log(
+                        chalk.gray(
+                            "Run: mirror db connect <database> or add --auto-connect flag to this command",
+                        ),
+                    );
+                    process.exit(0);
                 }
 
                 // Show fork intent and get confirmation
@@ -92,15 +105,29 @@ export function forkDatabaseCommand(): Command {
                     process.exit(0);
                 }
 
-                console.log(chalk.green(`\nForking database: ${db.name}...`));
-                // TODO: Implement fork logic
+                console.log(chalk.green(`\nForking database: ${db.name}...\n`));
+                const forkedDb = await forkDatabase(db.id);
 
+                // Initialize progress manager
+                const progressManager = new ForkProgressManager();
+                progressManager.start();
+
+                // Stream fork events and update progress
+                await streamFork(forkedDb.cloneId, (event, payload) => {
+                    progressManager.handleEvent(event, payload);
+                });
+
+                // Stream completed successfully
+                console.log(chalk.green("\n✓ Fork completed successfully!"));
+
+                const result = await tunnelCloneDb(forkedDb.cloneId);
+                console.log(result)
             } catch (error) {
                 console.log(chalk.red("Failed to fork database"));
                 console.log(error);
                 process.exit(1);
             }
-        })
+        });
 
     return command;
 }
