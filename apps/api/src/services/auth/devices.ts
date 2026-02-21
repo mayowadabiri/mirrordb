@@ -238,7 +238,7 @@ export const validateGithubState = async (
   const githubUserId = user.data.id.toString();
   const username = user.data.login;
   const avatarUrl = user.data.avatar_url;
-  const email = emailResponse.data.find((email: any) => email.primary)?.email;
+  const email = emailResponse.data.find((email: { primary: boolean; email: string }) => email.primary)?.email;
 
   // Use a transaction to ensure data consistency
   const result = await prisma.$transaction(async (tx) => {

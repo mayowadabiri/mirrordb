@@ -120,8 +120,43 @@ export function forkDatabaseCommand(): Command {
                 // Stream completed successfully
                 console.log(chalk.green("\n✓ Fork completed successfully!"));
 
-                const result = await tunnelCloneDb(forkedDb.cloneId);
-                console.log(result)
+                console.log(chalk.blue("\nStarting tunnel...\n"));
+
+                const abortController = new AbortController();
+
+                const cleanup = () => {
+                    console.log(chalk.yellow("\n\nShutting down tunnel..."));
+                    abortController.abort();
+                };
+
+                process.on("SIGINT", cleanup);
+                process.on("SIGTERM", cleanup);
+                process.on("SIGHUP", cleanup);
+
+                try {
+                    await tunnelCloneDb(forkedDb.cloneId, abortController.signal, (event: string, payload: any) => {
+                        if (event === "tunnel:ready") {
+                            console.log(chalk.green("\n✓ Tunnel ready\n"));
+                            console.log(chalk.white("Connect using:"));
+                            console.log(chalk.cyan(payload.url));
+                            console.log(chalk.gray("\nPress Ctrl+C to stop the tunnel.\n"));
+                        } else if (event === "tunnel:log") {
+                            process.stdout.write(payload.message);
+                        } else if (event === "tunnel:error") {
+                            console.log(chalk.red(payload.message));
+                        } else if (event === "tunnel:closed") {
+                            console.log(chalk.yellow("\nTunnel closed."));
+                            process.exit(0);
+                        }
+                    });
+                } finally {
+                    process.removeListener("SIGINT", cleanup);
+                    process.removeListener("SIGTERM", cleanup);
+                    process.removeListener("SIGHUP", cleanup);
+                }
+
+                console.log(chalk.yellow("\nTunnel stopped."));
+                process.exit(0);
             } catch (error) {
                 console.log(chalk.red("Failed to fork database"));
                 console.log(error);

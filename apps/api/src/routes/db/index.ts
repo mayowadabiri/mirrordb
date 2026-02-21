@@ -3,7 +3,10 @@ import { mfaMiddleware } from "../../middleware/mfa";
 import { AddDbPayload, DbCredentialsPayload } from "@mirrordb/types";
 import { addDatabase, connectDatabase, forkDatabase, getDatabase, listDatabases } from "../../services/db";
 import { createEmitter } from "../../utils/emit";
-import { forkOrchestrator } from "../../fork/orchestrator";
+import { forkOrchestrator } from "../../fork/stream/orchestrator";
+import { tunnelOrchestrator } from "../../fork/tunnel/tunnelOrchestrator";
+import crypto from "crypto";
+import { cleanup } from "../../fork/cleanup";
 
 
 const forkSessions = new Map<
@@ -84,6 +87,12 @@ export function dbRoutes(app: FastifyInstance) {
             reply.raw.write(": keep-alive\n\n");
         }, 300);
 
+        // Must register BEFORE the blocking await so it fires when the client disconnects
+        request.raw.on("close", () => {
+            clearInterval(interval);
+            forkSessions.delete(session);
+        });
+
         try {
             await forkOrchestrator({
                 sessionData: {
@@ -99,23 +108,69 @@ export function dbRoutes(app: FastifyInstance) {
             forkSessions.delete(session);
             reply.raw.end();
         }
-
-        request.raw.on("close", () => {
-            clearInterval(interval);
-            forkSessions.delete(session);
-        });
     });
 
-    app.get<{ Params: { cloneId: string } }>('/:cloneId/tunnel', async (request,) => {
-        await app.prisma.databaseClone.findUnique({
+    app.get<{ Params: { cloneId: string } }>("/:cloneId/tunnel", async (request, reply) => {
+        const clone = await app.prisma.databaseClone.findUnique({
             where: { id: request.params.cloneId },
             include: {
                 forkedDatabase: true
             }
         });
 
-        // const tunnel = await tunnelDatabase(clone?.forkedDatabase);
+        if (!clone || !clone.forkedDatabase) {
+            reply.code(404).send();
+            return;
+        }
 
+        // Only allow tunneling for completed forks
+        if (clone.status !== "COMPLETED") {
+            reply.code(400).send({ message: "Fork is not completed yet" });
+            return;
+        }
+
+        const session = crypto.randomUUID();
+
+        forkSessions.set(session, {
+            cloneId: clone.id,
+            forkedDatabaseId: clone.forkedDatabaseId as string
+        });
+
+        reply.raw.writeHead(200, {
+            "Content-Type": "text/event-stream",
+            "Cache-Control": "no-cache",
+            Connection: "keep-alive",
+        });
+
+        const emit = createEmitter(reply.raw);
+
+        emit("init", { session });
+
+        const interval = setInterval(() => {
+            reply.raw.write(": keep-alive\n\n");
+        }, 30000);
+
+        // Must register BEFORE the blocking await so it fires when the client disconnects
+        request.raw.on("close", async () => {
+            clearInterval(interval);
+            console.log("Tunnel closed")
+            await cleanup(forkSessions.get(session) as { cloneId: string; forkedDatabaseId: string })
+            forkSessions.delete(session);
+        });
+
+        try {
+            emit("tunnel:starting", {});
+
+            await tunnelOrchestrator({
+                clone,
+                emit,
+                isSessionAlive: () => forkSessions.has(session),
+            });
+        } finally {
+            clearInterval(interval);
+            forkSessions.delete(session);
+            reply.raw.end();
+        }
     });
 
 }

@@ -28,6 +28,14 @@ const neon = {
             }
         })
         return response.data;
+    },
+
+    async deleteDatabase(databaseName: string) {
+        return await neonClient.delete(`/projects/${process.env.NEON_PROJECT_ID}/branches/${process.env.NEON_BRANCH_ID}/databases/${databaseName}`)
+    },
+
+    async deleteRole(roleName: string) {
+        return await neonClient.delete(`/projects/${process.env.NEON_PROJECT_ID}/branches/${process.env.NEON_BRANCH_ID}/roles/${roleName}`)
     }
 }
 

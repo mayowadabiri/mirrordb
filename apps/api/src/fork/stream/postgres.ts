@@ -1,13 +1,12 @@
 import { Client } from "pg";
-import { CloneStatus, Database, DatabaseClone, ForkedDatabase } from "../../generated/prisma";
-// import { Client } from "pg"
-import { prisma } from "../lib/prisma";
-import { decrypt, encrypt } from "../utils/security";
-import neon from "../utils/neon";
+import { CloneStatus, Database, DatabaseClone, ForkedDatabase } from "../../../generated/prisma";
+import { prisma } from "../../lib/prisma";
+import { decrypt, encrypt } from "../../utils/security";
+import { assertTablesExist, validatePgConnection } from "../../utils/dbConnector";
+import neon from "../../utils/neon";
+import { updateDatabaseCloneStatus, updateForkedDatabase } from "../../services/db";
 import { streamDumpAndRestore } from "./actions";
-import { assertTablesExist, validatePgConnection } from "../utils/dbConnector";
-import { updateDatabaseCloneStatus, updateForkedDatabase } from "../services/db";
-// import { streamDumpAndRestore } from "./actions";
+
 
 class PostgresDriver {
     sourceDb: Database;
@@ -63,7 +62,7 @@ class PostgresDriver {
     }
 
     async initializeTargetDb() {
-        // await this.createTargetRole();
+        await this.createTargetRole();
         const payload = {
             database: {
                 name: `${this.targetDb.id}_${this.targetDb.name}`,
@@ -127,12 +126,15 @@ class PostgresDriver {
 
     }
 
+    async deleteDatabase() {
+        const targetDbName = `${this.targetDb.id}_${this.targetDb.name}`
+        await neon.deleteDatabase(targetDbName)
+    }
 
-
-    // async disconnect() {
-    //     if (this.sourceDbClient) await this.sourceDbClient.end();
-    //     if (this.targetDbClient) await this.targetDbClient.end();
-    // }
+    async deleteRole() {
+        const roleName = this.sourceDb.ownerUserId
+        await neon.deleteRole(roleName)
+    }
 }
 
 export default PostgresDriver;

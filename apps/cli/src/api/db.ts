@@ -125,8 +125,11 @@ export const streamFork = async (
 };
 
 
-
-export const tunnelCloneDb = async (cloneId: string) => {
+export const tunnelCloneDb = async (
+    cloneId: string,
+    signal: AbortSignal,
+    onEvent: (event: string, payload: any) => void
+) => {
     const response = await axiosInstance.get(
         `/db/${cloneId}/tunnel`,
         {
@@ -136,66 +139,73 @@ export const tunnelCloneDb = async (cloneId: string) => {
         }
     );
 
-    return response.data;
+    const stream = response.data;
 
-    // const stream = response.data;
+    // When abort signal fires, destroy the stream to trigger API-side cleanup
+    signal.addEventListener("abort", () => {
+        stream.destroy();
+    }, { once: true });
 
-    // return new Promise<void>((resolve, reject) => {
-    //     let buffer = "";
-    //     let currentEvent = "message";
+    return new Promise<void>((resolve, reject) => {
+        let buffer = "";
+        let currentEvent = "message";
 
-    //     stream.on("data", (chunk: Buffer) => {
-    //         buffer += chunk.toString();
+        stream.on("data", (chunk: Buffer) => {
+            buffer += chunk.toString();
 
-    //         const lines = buffer.split("\n");
-    //         buffer = lines.pop() ?? "";
-    //         for (const line of lines) {
-    //             if (line.startsWith("event:")) {
-    //                 currentEvent = line.replace("event:", "").trim();
-    //                 continue;
-    //             }
+            const lines = buffer.split("\n");
+            buffer = lines.pop() ?? "";
+            for (const line of lines) {
+                if (line.startsWith("event:")) {
+                    currentEvent = line.replace("event:", "").trim();
+                    continue;
+                }
 
-    //             if (line.startsWith("data:")) {
-    //                 const raw = line.replace("data:", "").trim();
+                if (line.startsWith("data:")) {
+                    const raw = line.replace("data:", "").trim();
 
-    //                 let payload: any = raw;
-    //                 try {
-    //                     payload = JSON.parse(raw);
-    //                 } catch {
-    //                     // keep string
-    //                     onEvent(currentEvent, raw);
-    //                     continue;
-    //                 }
+                    let payload: any = raw;
+                    try {
+                        payload = JSON.parse(raw);
+                    } catch {
+                        // keep string
+                        onEvent(currentEvent, raw);
+                        continue;
+                    }
 
-    //                 onEvent(currentEvent, payload);
+                    onEvent(currentEvent, payload);
 
-    //                 // End stream when __END__ event is received
-    //                 if (currentEvent === "__END__") {
-    //                     stream.destroy();
-    //                     resolve();
-    //                     return;
-    //                 }
-    //                 continue;
-    //             }
+                    // End stream when __END__ event is received
+                    if (currentEvent === "__END__") {
+                        stream.destroy();
+                        resolve();
+                        return;
+                    }
+                    continue;
+                }
 
-    //             // blank line = end of SSE message
-    //             if (line.trim() === "") {
-    //                 currentEvent = "message";
-    //             }
-    //         }
-    //     });
+                // blank line = end of SSE message
+                if (line.trim() === "") {
+                    currentEvent = "message";
+                }
+            }
+        });
 
-    //     stream.on("end", () => {
-    //         resolve();
-    //     });
+        stream.on("end", () => {
+            resolve();
+        });
 
-    //     stream.on("error", (err: any) => {
-    //         if (err.code === "ECONNRESET" || err.message === "aborted") {
-    //             resolve();
-    //             return;
-    //         }
-    //         console.error("Unexpected stream error:", err);
-    //         reject(err);
-    //     });
-    // });
+        stream.on("close", () => {
+            resolve();
+        });
+
+        stream.on("error", (err: any) => {
+            if (err.code === "ECONNRESET" || err.message === "aborted" || signal.aborted) {
+                resolve();
+                return;
+            }
+            console.error("Unexpected stream error:", err);
+            reject(err);
+        });
+    });
 };

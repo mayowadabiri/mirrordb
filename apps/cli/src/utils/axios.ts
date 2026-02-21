@@ -11,7 +11,7 @@ export function getAccessToken(): string {
 }
 
 export const axiosInstance = axios.create({
-  baseURL: process.env.API_URL || "http://localhost:3000/api",
+  baseURL: process.env.API_URL || "http://127.0.0.1:3000/api",
   timeout: 5000,
 });
 

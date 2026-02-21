@@ -238,7 +238,11 @@ export const verifyMfaToken = async (app: FastifyInstance, challengeId: string, 
     throw new BadRequestError("Challenge session expired");
   }
 
-  const decryptedSecret = decrypt(session.user.mfaSecretEncrypted!);
+  if (!session.user.mfaSecretEncrypted) {
+    throw new BadRequestError("MFA secret not found");
+  }
+
+  const decryptedSecret = decrypt(session.user.mfaSecretEncrypted);
   const isTokenValid = verifyTotpToken(decryptedSecret, code);
 
   if (!isTokenValid) {
