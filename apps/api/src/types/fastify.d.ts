@@ -1,11 +1,11 @@
 import 'fastify';
-import { User, Account } from '../../generated/prisma';
+import { User, AuthAccount } from '@mirrordb/database';
 
 declare module 'fastify' {
     interface FastifyRequest {
 
         user: User & {
-            accounts: Account[];
+            accounts: AuthAccount[];
         };
 
         deviceId: string;

@@ -49,6 +49,7 @@ export const forkDatabase = async (id: string) => {
     return response.data.data;
 }
 
+
 export const streamFork = async (
     cloneId: string,
     onEvent: (event: string, payload: any) => void
@@ -73,6 +74,7 @@ export const streamFork = async (
 
             const lines = buffer.split("\n");
             buffer = lines.pop() ?? "";
+
             for (const line of lines) {
                 if (line.startsWith("event:")) {
                     currentEvent = line.replace("event:", "").trim();
@@ -83,26 +85,29 @@ export const streamFork = async (
                     const raw = line.replace("data:", "").trim();
 
                     let payload: any = raw;
+
                     try {
                         payload = JSON.parse(raw);
                     } catch {
-                        // keep string
                         onEvent(currentEvent, raw);
                         continue;
                     }
 
                     onEvent(currentEvent, payload);
 
-                    // End stream when __END__ event is received
-                    if (currentEvent === "__END__") {
+                    if (
+                        payload?.status === "COMPLETED" ||
+                        payload?.status === "FAILED" ||
+                        payload?.status === "CANCELLED"
+                    ) {
                         stream.destroy();
                         resolve();
                         return;
                     }
+
                     continue;
                 }
 
-                // blank line = end of SSE message
                 if (line.trim() === "") {
                     currentEvent = "message";
                 }
@@ -113,17 +118,26 @@ export const streamFork = async (
             resolve();
         });
 
+        stream.on("close", () => {
+            resolve();
+        });
+
         stream.on("error", (err: any) => {
             if (err.code === "ECONNRESET" || err.message === "aborted") {
                 resolve();
                 return;
             }
+
             console.error("Unexpected stream error:", err);
             reject(err);
         });
     });
 };
 
+
+export const cancelFork = async (cloneId: string) => {
+    await axiosInstance.patch(`/db/${cloneId}/cancel`);
+};
 
 export const tunnelCloneDb = async (
     cloneId: string,
@@ -164,7 +178,7 @@ export const tunnelCloneDb = async (
                 if (line.startsWith("data:")) {
                     const raw = line.replace("data:", "").trim();
 
-                    let payload: any = raw;
+                    let payload: string = raw;
                     try {
                         payload = JSON.parse(raw);
                     } catch {
@@ -199,7 +213,7 @@ export const tunnelCloneDb = async (
             resolve();
         });
 
-        stream.on("error", (err: any) => {
+        stream.on("error", (err: { code: string; message: string }) => {
             if (err.code === "ECONNRESET" || err.message === "aborted" || signal.aborted) {
                 resolve();
                 return;

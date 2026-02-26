@@ -1,0 +1,25 @@
+{
+    "name": "worker",
+    "version": "1.0.0",
+    "description": "MirrorDB background job worker",
+    "main": "dist/worker.js",
+    "type": "module",
+    "scripts": {
+        "dev": "tsx watch src/worker.ts",
+        "start": "node dist/worker.js",
+        "build": "tsc",
+        "typecheck": "tsc --noEmit"
+    },
+    "dependencies": {
+        "@mirrordb/database": "*",
+        "@mirrordb/queue": "*",
+        "@mirrordb/utils": "*",
+        "bullmq": "^5.70.0",
+        "dotenv": "^17.3.1"
+    },
+    "devDependencies": {
+        "@types/node": "^25.0.7",
+        "tsx": "^4.20.3",
+        "typescript": "^5.4.0"
+    }
+}

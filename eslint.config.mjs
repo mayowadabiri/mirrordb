@@ -11,6 +11,7 @@ export default tseslint.config(
             '**/coverage/**',
             '**/*.gen.ts',
             '**/prisma/generated/**',
+            '**/prisma.config.ts',
         ],
     },
     js.configs.recommended,
@@ -44,6 +45,8 @@ export default tseslint.config(
             '@typescript-eslint/no-unsafe-argument': 'off',
             '@typescript-eslint/no-unsafe-optional-chain': 'off',
             '@typescript-eslint/prefer-promise-reject-errors': 'off',
+            '@typescript-eslint/require-await': 'off',
+            '@typescript-eslint/no-non-null-assertion': 'off',
         },
     }
 );

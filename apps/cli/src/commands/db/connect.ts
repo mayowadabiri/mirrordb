@@ -191,7 +191,7 @@ export function connectDatabaseCommand(): Command {
 
             } catch (error) {
                 const data = getErrorData(error)
-                const code = (data?.details as { code?: string })?.code;
+                const code = data?.details?.code;
                 if (code === "DATABASE_NOT_FOUND") {
                     console.log(chalk.red("No database found with that name or ID"))
                     console.log(chalk.red("Please check your database name or ID. Run `mirrordb db list` to list all databases"))

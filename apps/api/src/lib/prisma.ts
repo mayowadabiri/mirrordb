@@ -1,14 +1,2 @@
-import { PrismaClient } from "../../generated/prisma/index";
-import { Pool } from "pg";
-import { PrismaPg } from "@prisma/adapter-pg";
-
-const connectionString = process.env.DATABASE_URL;
-
-if (!connectionString) {
-  throw new Error("DATABASE_URL environment variable is not set");
-}
-
-const pool = new Pool({ connectionString });
-const adapter = new PrismaPg(pool);
-
-export const prisma = new PrismaClient({ adapter });
+// Re-export the shared Prisma client instance from @mirrordb/database
+export { prisma } from "@mirrordb/database";

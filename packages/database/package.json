@@ -1,0 +1,44 @@
+{
+    "name": "@mirrordb/database",
+    "version": "0.1.0",
+    "description": "Shared Prisma database client for MirrorDB",
+    "main": "dist/client.js",
+    "types": "dist/client.d.ts",
+    "type": "module",
+    "exports": {
+        ".": {
+            "types": "./dist/client.d.ts",
+            "import": "./dist/client.js",
+            "default": "./dist/client.js"
+        },
+        "./client": {
+            "types": "./dist/client.d.ts",
+            "import": "./dist/client.js",
+            "default": "./dist/client.js"
+        },
+        "./generated/prisma": {
+            "types": "./generated/prisma/index.d.ts",
+            "import": "./generated/prisma/index.js",
+            "default": "./generated/prisma/index.js"
+        }
+    },
+    "scripts": {
+        "build": "tsc",
+        "typecheck": "tsc --noEmit",
+        "prisma:generate": "prisma generate",
+        "prisma:migrate": "prisma migrate dev",
+        "prisma:deploy": "prisma migrate deploy",
+        "prisma:studio": "prisma studio",
+        "postinstall": "prisma generate"
+    },
+    "dependencies": {
+        "@prisma/adapter-pg": "^7.2.0",
+        "@prisma/client": "^7.4.1",
+        "pg": "^8.16.0"
+    },
+    "devDependencies": {
+        "@types/pg": "^8.16.0",
+        "prisma": "^7.4.1",
+        "typescript": "^5.4.0"
+    }
+}

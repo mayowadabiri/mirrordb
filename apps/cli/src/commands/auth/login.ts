@@ -47,7 +47,6 @@ export const createLoginAction = async (options: { browser: boolean }) => {
 
     console.log(chalk.gray("\nWaiting for authentication..."));
 
-    // 🔁 Polling loop
     while (true) {
       if (isAfter(new Date(), new Date(device?.expiresAt))) {
         console.log(chalk.red("\nLogin expired. Please try again."));

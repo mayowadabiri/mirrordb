@@ -5,7 +5,9 @@ import { BadRequestError, NotFoundError } from "../../utils/appError";
 import { isAfter } from "date-fns";
 
 export function mfaCliRoutes(app: FastifyInstance) {
-  app.post("/start", async (req, reply) => {
+  app.post("/start", {
+    config: { rateLimit: { max: 5, timeWindow: "1 minute" } },
+  }, async (req, reply) => {
     const result = await startMfa(app, req.user.id);
 
     reply.code(201);
@@ -19,7 +21,9 @@ export function mfaCliRoutes(app: FastifyInstance) {
     return createSuccessResponse(result, "MFA setup status retrieved");
   });
 
-  app.post("/challenge", async (req, reply) => {
+  app.post("/challenge", {
+    config: { rateLimit: { max: 5, timeWindow: "1 minute" } },
+  }, async (req, reply) => {
     const result = await challengeMfa(app, req.user, req.deviceId);
     reply.code(201);
     return createSuccessResponse(result, "MFA challenge started successfully");
@@ -48,7 +52,6 @@ export function mfaCliRoutes(app: FastifyInstance) {
     }
 
     const expiredAt = session.mfaExpiresAt;
-    console.log(expiredAt);
 
     if (!expiredAt || isAfter(new Date(), expiredAt)) {
       throw new BadRequestError("MFA session expired", {

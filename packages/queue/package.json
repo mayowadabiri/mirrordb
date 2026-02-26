@@ -1,0 +1,18 @@
+{
+    "name": "@mirrordb/queue",
+    "version": "0.1.0",
+    "description": "Shared BullMQ queue and Redis configuration for MirrorDB",
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "scripts": {
+        "build": "tsc",
+        "typecheck": "tsc --noEmit"
+    },
+    "dependencies": {
+        "bullmq": "^5.70.0",
+        "ioredis": "5.9.2"
+    },
+    "devDependencies": {
+        "typescript": "^5.4.0"
+    }
+}

@@ -1,14 +1,13 @@
 import { FastifyInstance } from "fastify";
 import { BadRequestError, NotFoundError } from "../../utils/appError";
 import {
-  encrypt,
-  decrypt,
   generateTotpSecret,
   verifyTotpToken,
 } from "../../utils/security";
 import { buildOtpAuthUrl } from "../../utils/oauthurl";
 import { addHours, addMinutes, isAfter } from "date-fns";
-import { DeviceAuthStatus, User } from "../../../generated/prisma";
+import { DeviceAuthStatus, User } from "@mirrordb/database";
+import { decrypt, encrypt } from "@mirrordb/utils";
 
 export const startMfa = async (app: FastifyInstance, userId: string) => {
   const user = await app.prisma.user.findUnique({
@@ -109,7 +108,6 @@ export const confirmMfaSetup = async (
       user: true,
     },
   });
-  console.log(session)
   if (!session) {
     throw new NotFoundError("Invalid setup session");
   }

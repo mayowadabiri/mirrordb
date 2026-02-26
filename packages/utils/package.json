@@ -1,0 +1,27 @@
+{
+    "name": "@mirrordb/utils",
+    "version": "0.1.0",
+    "description": "Shared utility functions for MirrorDB",
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "type": "module",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js",
+            "default": "./dist/index.js"
+        }
+    },
+    "scripts": {
+        "build": "tsc",
+        "typecheck": "tsc --noEmit"
+    },
+    "dependencies": {
+        "axios": "^1.9.0",
+        "pg": "^8.16.0"
+    },
+    "devDependencies": {
+        "@types/pg": "^8.16.0",
+        "typescript": "^5.4.0"
+    }
+}

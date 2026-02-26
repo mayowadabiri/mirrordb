@@ -1,4 +1,4 @@
-import { PrismaClient } from "../../../generated/prisma/index";
+import { PrismaClient } from "@mirrordb/database";
 import {
   generateDeviceCode,
   generateJWT,
@@ -12,6 +12,7 @@ import { generateSession } from "../../utils/session";
 import axios from "axios";
 
 const GITHUB_BASE_URL = "https://github.com/login/oauth/access_token";
+const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 
 
 const webUrl = process.env.WEB_URL || "http://localhost:5173";
@@ -328,4 +329,120 @@ export const validateGithubState = async (
     user: result.user,
     authAccount: result.authAccount,
   };
+};
+
+export const validateGoogleCode = async (
+  prisma: PrismaClient,
+  body: { code: string; state: string },
+) => {
+  const { code, state } = body;
+  if (!code || !state) {
+    throw new BadRequestError("Missing code or state");
+  }
+
+  const decoded = verifyJWT(state) as {
+    deviceCode: string;
+    userCode: string;
+    expiresAt: string;
+  } | null;
+
+  if (!decoded) {
+    throw new BadRequestError("Invalid or expired state parameter");
+  }
+
+  const tokenResponse = await axios.post(
+    GOOGLE_TOKEN_URL,
+    {
+      code,
+      client_id: process.env.GOOGLE_CLIENT_ID,
+      client_secret: process.env.GOOGLE_CLIENT_SECRET,
+      redirect_uri: "postmessage",
+      grant_type: "authorization_code",
+    },
+    { headers: { "Content-Type": "application/json" } },
+  );
+
+  const idToken: string = tokenResponse.data.id_token;
+  if (!idToken) {
+    throw new BadRequestError("Google did not return an id_token");
+  }
+
+  const payloadBase64 = idToken.split(".")[1];
+  const payload = JSON.parse(
+    Buffer.from(payloadBase64, "base64url").toString("utf8"),
+  ) as {
+    sub: string;
+    email?: string;
+    name?: string;
+    picture?: string;
+  };
+
+  const googleUserId = payload.sub;
+  const email = payload.email;
+  const username = payload.name;
+  const avatarUrl = payload.picture;
+
+  const result = await prisma.$transaction(async (tx) => {
+    let authAccount = await tx.authAccount.findUnique({
+      where: {
+        provider_providerId: {
+          provider: "GOOGLE",
+          providerId: googleUserId,
+        },
+      },
+      include: { user: true },
+    });
+
+    let dbUser;
+
+    if (authAccount) {
+      dbUser = await tx.user.update({
+        where: { id: authAccount.user.id },
+        data: {
+          avatarUrl,
+          ...(username && !authAccount.user.username ? { username } : {}),
+        },
+      });
+    } else {
+      if (email) {
+        dbUser = await tx.user.findUnique({ where: { email } });
+      }
+
+      if (!dbUser) {
+        dbUser = await tx.user.create({
+          data: { email, username, avatarUrl },
+        });
+      }
+
+      authAccount = await tx.authAccount.create({
+        data: {
+          provider: "GOOGLE",
+          providerId: googleUserId,
+          userId: dbUser.id,
+        },
+        include: { user: true },
+      });
+    }
+
+    const deviceAuth = await tx.deviceAuth.findUnique({
+      where: { deviceCode: decoded.deviceCode },
+    });
+
+    if (!deviceAuth) {
+      throw new BadRequestError("Device authorization not found");
+    }
+
+    await tx.deviceAuth.update({
+      where: { deviceCode: decoded.deviceCode },
+      data: {
+        userId: dbUser.id,
+        status: "APPROVED",
+        approvedAt: new Date(),
+      },
+    });
+
+    return { user: dbUser, authAccount };
+  });
+
+  return { user: result.user, authAccount: result.authAccount };
 };

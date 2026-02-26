@@ -36,7 +36,7 @@ export default function DeviceAuthPage() {
                     token: response.token,
                 },
             })
-        } catch (err) {
+        } catch {
             // Error is handled by the mutation
         }
     }

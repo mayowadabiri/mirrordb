@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import ms from "ms";
-import { DeviceAuth, PrismaClient } from "../../generated/prisma";
+import { DeviceAuth, PrismaClient } from "@mirrordb/database";
 import { generateJWT } from "./security";
 
 export const generateSession = async (prisma: PrismaClient, deviceAuth: DeviceAuth) => {

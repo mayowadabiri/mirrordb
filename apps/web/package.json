@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@mirrordb/types": "*",
+    "@react-oauth/google": "^0.13.4",
     "@tailwindcss/vite": "^4.1.18",
     "@tanstack/react-query": "^5.90.17",
     "@tanstack/react-router": "^1.87.0",

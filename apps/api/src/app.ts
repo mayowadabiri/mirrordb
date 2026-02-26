@@ -40,8 +40,28 @@ await fastify.register(helmet, {
   },
 });
 
+const isProduction = process.env.NODE_ENV === 'production';
+
+if (isProduction && !process.env.CORS_ORIGIN) {
+  throw new Error('CORS_ORIGIN must be defined in production');
+}
+
+const allowedOrigins = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(',').map(o => o.trim())
+  : [];
+
 await fastify.register(cors, {
-  origin: process.env.CORS_ORIGIN || true,
+  origin: (origin, callback) => {
+    if (!origin) {
+      return callback(null, true);
+    }
+
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    callback(new Error('Not allowed by CORS'), false);
+  },
   credentials: true,
 });
 
@@ -78,7 +98,7 @@ fastify.setErrorHandler((error: FastifyError | AppError, request, reply) => {
       success: false,
       statusCode: error.code,
       message: error.message,
-      details: error.data,
+      details: error.data as { code: string },
     };
     return reply.status(error.statusCode).send(errorResponse);
   }
@@ -92,16 +112,7 @@ fastify.setErrorHandler((error: FastifyError | AppError, request, reply) => {
     statusCode: error.code ?? getErrorCode(statusCode),
     message:
       statusCode >= 500 && !isDev ? "Internal Server Error" : error.message,
-    details: error.validation,
   };
-
-  // Include validation errors if present
-  if (error.validation) {
-    errorResponse.statusCode = "VALIDATION_ERROR";
-    errorResponse.details = error.validation;
-  }
-
-
 
   reply.status(statusCode).send(errorResponse);
 });

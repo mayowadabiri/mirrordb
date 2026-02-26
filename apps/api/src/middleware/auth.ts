@@ -30,4 +30,16 @@ export async function authMiddleware(request: FastifyRequest, _reply: FastifyRep
 
     request.user = user
     request.deviceId = (decodedToken as { deviceId: string }).deviceId
+
+    if (request.deviceId) {
+        const deviceAuth = await request.server.prisma.deviceAuth.findUnique({
+            where: {
+                id: request.deviceId,
+            },
+        });
+
+        if (!deviceAuth || deviceAuth.status !== "APPROVED") {
+            throw new UnauthorizedError("Session has been revoked or is invalid");
+        }
+    }
 }

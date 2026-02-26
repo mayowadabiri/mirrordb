@@ -1,5 +1,5 @@
-import crypto, { randomBytes, randomUUID } from "crypto";
-import bcrypt from "bcrypt";
+import { randomBytes, randomUUID } from "crypto";
+import crypto from "crypto";
 import jwt, { SignOptions } from "jsonwebtoken";
 import speakeasy from "speakeasy";
 
@@ -9,16 +9,25 @@ if (!SECRET) {
 }
 
 const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error("JWT_SECRET environment variable is required");
+}
 
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN as SignOptions["expiresIn"];
 
 export const generateDeviceCode = () => randomUUID();
 
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const REJECTION_BOUND = 256 - (256 % ALPHABET.length);
 
-export function generateUserCode() {
-  const bytes = randomBytes(8);
-  const chars = Array.from(bytes).map((b) => ALPHABET[b % ALPHABET.length]);
+export function generateUserCode(): string {
+  const chars: string[] = [];
+  while (chars.length < 8) {
+    const byte = randomBytes(1)[0];
+    if (byte < REJECTION_BOUND) {
+      chars.push(ALPHABET[byte % ALPHABET.length]);
+    }
+  }
   return `${chars.slice(0, 4).join("")}-${chars.slice(4, 8).join("")}`;
 }
 
@@ -70,32 +79,3 @@ export function verifyTotpToken(secretBase32: string, token: string) {
   });
 }
 
-const ALGORITHM = "aes-256-gcm";
-const KEY = Buffer.from(process.env.MFA_ENCRYPTION_KEY!, "hex");
-
-export function encrypt(text: string) {
-  const iv = crypto.randomBytes(12);
-  const cipher = crypto.createCipheriv(ALGORITHM, KEY, iv);
-
-  const encrypted = Buffer.concat([
-    cipher.update(text, "utf8"),
-    cipher.final(),
-  ]);
-
-  const tag = cipher.getAuthTag();
-
-  return Buffer.concat([iv, tag, encrypted]).toString("base64");
-}
-
-export function decrypt(payload: string) {
-  const buffer = Buffer.from(payload, "base64");
-
-  const iv = buffer.subarray(0, 12);
-  const tag = buffer.subarray(12, 28);
-  const encrypted = buffer.subarray(28);
-
-  const decipher = crypto.createDecipheriv(ALGORITHM, KEY, iv);
-  decipher.setAuthTag(tag);
-
-  return decipher.update(encrypted, undefined, "utf8") + decipher.final("utf8");
-}

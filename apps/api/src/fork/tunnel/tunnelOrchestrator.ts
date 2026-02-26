@@ -1,8 +1,8 @@
 import net from "net";
 import tls from "tls";
 import crypto from "crypto";
-import { DatabaseClone, ForkedDatabase } from "../../../generated/prisma";
-import { decrypt } from "../../utils/security";
+import { decrypt } from "@mirrordb/utils";
+import { DatabaseClone, ForkedDatabase } from "@mirrordb/database";
 
 const SSL_REQUEST_CODE = 80877103;
 const GSS_REQUEST_CODE = 80877104;

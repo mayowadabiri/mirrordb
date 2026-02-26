@@ -169,11 +169,8 @@ model Database {
   description String?
   tags        String[]
 
-
-
   // State timestamps
   connectedAt DateTime?
-  verifiedAt  DateTime?
 
   // Audit
   createdAt DateTime @default(now())
@@ -204,7 +201,6 @@ enum DatabaseEnvironment {
 enum DatabaseStatus {
   REGISTERED // db add
   CONNECTED // db connect
-  VERIFIED // db verify
   CLONED // at least one clone exists
   DISABLED // manually disabled
 }
@@ -235,7 +231,6 @@ enum CredentialType {
   IAM_ROLE
 }
 
-
 model ForkedDatabase {
   id String @id @default(cuid())
 
@@ -245,35 +240,54 @@ model ForkedDatabase {
   encryptedPayload String?
 
   // Metadata
-  name      String
-  createdAt DateTime @default(now())
+  name String
 
-  // Relation to the clone/operation record
-  clone DatabaseClone?
+  // Infrastructure state
+  isActive Boolean @default(true)
+
+  // Optional: who owns it
+  ownerUserId String
+
+  createdAt     DateTime       @default(now())
+  databaseClone DatabaseClone?
+
+  @@index([sourceDatabaseId])
+  @@index([ownerUserId])
 }
 
 model DatabaseClone {
   id String @id @default(cuid())
 
+  // What we are cloning
   sourceDatabaseId String
   sourceDatabase   Database @relation(fields: [sourceDatabaseId], references: [id])
 
-  // Optional: The active ephemeral fork (if it still exists)
-  forkedDatabaseId String? @unique
+  // The resulting fork (if created)
+  forkedDatabaseId String?         @unique
   forkedDatabase   ForkedDatabase? @relation(fields: [forkedDatabaseId], references: [id], onDelete: SetNull)
 
+  // Lifecycle
   status CloneStatus @default(PENDING)
-  
-  createdAt   DateTime  @default(now())
+
+  // Execution metadata
+  startedAt   DateTime?
   completedAt DateTime?
+  cancelledAt DateTime?
+  failedAt    DateTime?
+
+  errorMessage String?
+
+  createdAt DateTime @default(now())
 
   @@index([sourceDatabaseId])
+  @@index([status])
 }
 
-
 enum CloneStatus {
-  PENDING
-  RUNNING
-  FAILED
-  COMPLETED
+  PENDING // Job created, not yet picked by worker
+  RUNNING // Worker actively executing
+  CANCELLING // User requested cancellation
+  CANCELLED // Cleanup completed
+  FAILED // Unexpected error
+  COMPLETED // Successfully finished
 }

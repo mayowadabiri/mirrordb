@@ -7,12 +7,17 @@
     "apps/cli",
     "apps/api",
     "apps/web",
-    "packages/types"
+    "apps/worker",
+    "packages/types",
+    "packages/database",
+    "packages/queue",
+    "packages/utils"
   ],
   "scripts": {
     "dev:cli": "npm run dev --workspace=apps/cli --",
     "dev:api": "yarn workspace api dev",
     "dev:web": "yarn workspace web dev",
+    "dev:worker": "yarn workspace worker dev",
     "dev": "concurrently \"yarn dev:api\" \"yarn dev:web\"",
     "build": "npm run build --workspaces",
     "typecheck": "npm run typecheck --workspaces",

@@ -29,6 +29,7 @@ mirrordb/
 │   ├── cli/          # Command-line interface
 │   └── web/          # Web dashboard (React)
 └── packages/
+    ├── database/     # Prisma schema & generated client
     └── types/        # Shared TypeScript types
 ```
 
@@ -41,8 +42,18 @@ mirrordb/
 **Structure**:
 ```
 src/
+├── fork/             # Forked process handlers
+│   ├── cleanup.ts    # Cleanup logic
+│   ├── stream/       # Streaming operations
+│   │   ├── actions.ts
+│   │   ├── orchestrator.ts
+│   │   └── postgres.ts
+│   └── tunnel/       # Tunnel operations
+│       └── tunnelOrchestrator.ts
 ├── lib/              # Core libraries
-├── middleware/       # Request middleware (auth, etc.)
+├── middleware/       # Request middleware
+│   ├── auth.ts       # Auth middleware
+│   └── mfa.ts        # MFA middleware
 ├── plugins/          # Fastify plugins (prisma, swagger, rate-limit)
 ├── routes/           # Route handlers
 │   ├── auth/         # Authentication endpoints
@@ -59,8 +70,13 @@ src/
 ├── utils/            # Utility functions
 │   ├── appError.ts   # Custom error classes
 │   ├── dbConnector.ts # Database connection validators
+│   ├── emit.ts       # Event emitting utilities
 │   ├── errors.ts     # Error utilities
-│   └── security.ts   # Encryption/security utils
+│   ├── neon.ts       # Neon database utilities
+│   ├── oauthurl.ts   # OAuth URL helpers
+│   ├── response.ts   # Response utilities
+│   ├── security.ts   # Encryption/security utils
+│   └── session.ts    # Session utilities
 ├── app.ts            # Fastify app setup
 └── server.ts         # Entry point
 ```
@@ -93,11 +109,13 @@ src/
 │   └── version.ts    # Version command
 ├── hooks/            # Command hooks (authGuard, mfaGuard)
 ├── utils/            # Utility functions
+│   ├── axios.ts      # HTTP client
 │   ├── config.ts     # Config file management
 │   ├── errors.ts     # Error handling
+│   ├── forkEvents.ts # Fork event definitions
+│   ├── forkProgress.ts # Fork progress tracking
 │   ├── helpers.ts    # DB engine helpers
-│   ├── path.ts       # Path constants
-│   └── axios.ts      # HTTP client
+│   └── path.ts       # Path constants
 ├── index.ts          # Entry point
 └── program.ts        # Commander program setup
 ```

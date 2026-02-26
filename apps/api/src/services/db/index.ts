@@ -1,10 +1,13 @@
-import { DatabaseClone, DatabaseEngine, DatabaseStatus, PrismaClient, User } from "../../../generated/prisma";
+import { DatabaseClone, DatabaseEngine, DatabaseStatus, PrismaClient, User } from "@mirrordb/database";
 import { AddDbPayload, DbCredentialsMethod, DbCredentialsPayload } from "@mirrordb/types";
 import { BadRequestError } from "../../utils/appError";
 import { Client } from "pg"
-import { encrypt } from "../../utils/security";
+import { encrypt } from "@mirrordb/utils";
 import { validateMongoConnection, validatePgConnection, validateMySqlConnection } from "../../utils/dbConnector";
 import { prisma } from "../../lib/prisma";
+import { forkQueue } from "@mirrordb/queue";
+import { getJobType } from "../../utils/helper";
+
 
 
 export const addDatabase = async (prisma: PrismaClient, user: User, body: AddDbPayload) => {
@@ -198,13 +201,23 @@ export const forkDatabase = async (prisma: PrismaClient, id: string, userId: str
         });
     }
 
-    return prisma.$transaction(async (tx) => {
+    const cloneId = await prisma.$transaction(async (tx) => {
         const forkedDb = await tx.forkedDatabase.create({
             data: {
-                name: `${sourceDb.name}-fork-${Date.now()}`, // Temporary name for internal use
+                name: `${sourceDb.name}-fork-${Date.now()}`,
                 sourceDatabaseId: sourceDb.id,
+                ownerUserId: userId,
             },
         });
+
+        await tx.forkedDatabase.update({
+            where: {
+                id: forkedDb.id
+            },
+            data: {
+                name: `${sourceDb.name}-fork-${forkedDb.id}`
+            }
+        })
 
         const cloned = await tx.databaseClone.create({
             data: {
@@ -214,10 +227,24 @@ export const forkDatabase = async (prisma: PrismaClient, id: string, userId: str
             },
         });
 
-        return {
-            cloneId: cloned.id,
-        };
+        return cloned.id;
     });
+
+    const forkType = getJobType(sourceDb.engine);
+
+    await forkQueue.add(forkType, {
+        cloneId: cloneId,
+    }, {
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 5000 },
+        removeOnComplete: true,
+        removeOnFail: false,
+    })
+
+    return {
+        cloneId,
+    }
+
 }
 
 
@@ -235,7 +262,6 @@ export const updateForkedDatabase = async (databaseId: string, payload: object) 
 
 
 export const updateDatabaseCloneStatus = async (cloneId: string, payload: DatabaseClone) => {
-    console.log(payload)
     await prisma.databaseClone.update({
         where: {
             id: cloneId
@@ -245,3 +271,5 @@ export const updateDatabaseCloneStatus = async (cloneId: string, payload: Databa
         }
     })
 }
+
+

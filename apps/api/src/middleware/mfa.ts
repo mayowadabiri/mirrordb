@@ -21,6 +21,11 @@ export async function mfaMiddleware(request: FastifyRequest, reply: FastifyReply
         throw new UnauthorizedError("Invalid token")
     }
 
+    if (!device.userId || device.userId !== request.user.id) {
+        reply.code(401)
+        throw new UnauthorizedError("Invalid token")
+    }
+
     if (device.status !== "APPROVED") {
         reply.code(401)
         throw new UnauthorizedError("Invalid token")

@@ -1,8 +1,14 @@
+ 
 import { FastifyPluginAsync } from "fastify";
 import fp from "fastify-plugin";
 
 // Configuration plugin
 const configPlugin: FastifyPluginAsync = async (fastify) => {
+  const jwtSecret = process.env.JWT_SECRET;
+  if (!jwtSecret) {
+    throw new Error("JWT_SECRET environment variable is required");
+  }
+
   const config = {
     port: Number(process.env.PORT) || 3000,
     host: process.env.HOST || "0.0.0.0",
@@ -18,7 +24,7 @@ const configPlugin: FastifyPluginAsync = async (fastify) => {
       timeWindow: process.env.RATE_LIMIT_WINDOW || "1 minute",
     },
     jwt: {
-      secret: process.env.JWT_SECRET || "change-this-secret-in-production",
+      secret: jwtSecret,
     },
     api: {
       url: process.env.API_URL || "http://localhost:3000",

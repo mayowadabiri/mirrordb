@@ -3,7 +3,7 @@ export interface ApiErrorResponse {
     success: false;
     statusCode: string;
     message: string;
-    details?: unknown;
+    details?: { code: string };
 }
 
 export interface ApiSuccessResponse<T = unknown> {

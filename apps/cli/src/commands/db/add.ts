@@ -109,7 +109,6 @@ export function addDbCommand(): Command {
         .hook("preAction", mfaGuard)
         .action(async (options: { name?: string; engine?: string; environment?: string; description?: string }) => {
             const db = await runDbAddInteractive(options);
-            console.log(db)
             console.log(chalk.blue("Creating database..."));
             const result = await createDb(db as AddDbPayload);
             console.log(chalk.green("Database created successfully"));

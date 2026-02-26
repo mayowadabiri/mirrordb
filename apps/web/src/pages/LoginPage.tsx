@@ -1,4 +1,6 @@
 import { Route } from '../routes/auth/login'
+import { useGoogleLogin } from '@react-oauth/google'
+import { post } from '../api/axios'
 
 export default function LoginPage() {
     const { token } = Route.useSearch()
@@ -18,10 +20,19 @@ export default function LoginPage() {
             `&state=${encodeURIComponent(token!)}`
     }
 
-    const handleGoogleLogin = () => {
-        console.log('Google login clicked')
-        // Implement Google OAuth flow here
-    }
+    const handleGoogleLogin = useGoogleLogin({
+        flow: 'auth-code',
+        onSuccess: async (codeResponse) => {
+            await post('/api/auth/device/oauth/google/callback', {
+                code: codeResponse.code,
+                state: token,
+            })
+            window.location.href = '/auth/success'
+        },
+        onError: (error) => {
+            console.error('Google login failed:', error)
+        },
+    })
 
     return (
         <div className="min-h-screen bg-white flex items-center justify-center p-4">
@@ -47,7 +58,7 @@ export default function LoginPage() {
                     </button>
 
                     <button
-                        onClick={handleGoogleLogin}
+                        onClick={() => handleGoogleLogin()}
                         className="w-full flex items-center justify-center gap-3 bg-white hover:bg-gray-50 text-gray-900 font-medium py-3 px-4 rounded-lg border-2 border-gray-300 transition-colors duration-200"
                     >
                         <svg className="w-5 h-5" viewBox="0 0 24 24" aria-hidden="true">

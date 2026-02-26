@@ -3,6 +3,7 @@ import {
   checkDeviceStatus,
   generateVerificationUrl,
   validateGithubState,
+  validateGoogleCode,
   verifiyUserCode,
 } from "../../services/auth/devices.js";
 import {
@@ -16,6 +17,7 @@ export const deviceRoutes = (app: FastifyInstance) => {
     "/start",
     {
       schema: startDeviceSchema,
+      config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
     },
     async (request, reply) => {
       const result = await generateVerificationUrl(app.prisma);
@@ -34,6 +36,7 @@ export const deviceRoutes = (app: FastifyInstance) => {
     "/verify",
     {
       schema: verifyDeviceSchema,
+      config: { rateLimit: { max: 5, timeWindow: "1 minute" } },
     },
     async (request, reply) => {
       const result = await verifiyUserCode(app.prisma, request.body.code);
@@ -51,6 +54,18 @@ export const deviceRoutes = (app: FastifyInstance) => {
     await validateGithubState(app.prisma, query);
     reply.redirect(`${process.env.APP_URL}/auth/success`);
   });
+
+  app.post<{ Body: { code: string; state: string } }>(
+    "/oauth/google/callback",
+    {
+      config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
+    },
+    async (request, reply) => {
+      await validateGoogleCode(app.prisma, request.body);
+      reply.code(200);
+      return createSuccessResponse(null, "Google authentication successful");
+    },
+  );
 
   app.get<{ Params: { deviceCode: string } }>("/:deviceCode/status", async (request, reply) => {
     const result = await checkDeviceStatus(app.prisma, request.params.deviceCode);
