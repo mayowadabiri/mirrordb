@@ -1,0 +1,166 @@
+import { createHash, randomBytes } from "crypto";
+
+interface AtlasRole {
+    roleName: string;
+    databaseName: string;
+}
+
+interface AtlasUserPayload {
+    databaseName: string;
+    groupId: string;
+    roles: AtlasRole[];
+    username: string;
+    password: string;
+}
+
+function getAtlasConfig() {
+    const publicKey = process.env.ATLAS_PUBLIC_KEY;
+    const privateKey = process.env.ATLAS_PRIVATE_KEY;
+    const projectId = process.env.ATLAS_PROJECT_ID;
+
+    if (!publicKey || !privateKey || !projectId) {
+        throw new Error(
+            "ATLAS_PUBLIC_KEY, ATLAS_PRIVATE_KEY, and ATLAS_PROJECT_ID environment variables are required"
+        );
+    }
+
+    return { publicKey, privateKey, projectId };
+}
+
+const ATLAS_BASE_URL = "https://cloud.mongodb.com/api/atlas/v2";
+
+function md5(data: string): string {
+    return createHash("md5").update(data).digest("hex");
+}
+
+function parseDigestChallenge(header: string): Record<string, string> {
+    const params: Record<string, string> = {};
+    const regex = /(\w+)=(?:"([^"]+)"|([^,\s]+))/g;
+    let match;
+    while ((match = regex.exec(header)) !== null) {
+        params[match[1]] = match[2] ?? match[3];
+    }
+    return params;
+}
+
+function buildDigestHeader(
+    method: string,
+    uri: string,
+    username: string,
+    password: string,
+    challenge: Record<string, string>
+): string {
+    const nc = "00000001";
+    const cnonce = randomBytes(16).toString("hex");
+
+    const ha1 = md5(`${username}:${challenge.realm}:${password}`);
+    const ha2 = md5(`${method}:${uri}`);
+    const response = md5(
+        `${ha1}:${challenge.nonce}:${nc}:${cnonce}:${challenge.qop}:${ha2}`
+    );
+
+    return [
+        `Digest username="${username}"`,
+        `realm="${challenge.realm}"`,
+        `nonce="${challenge.nonce}"`,
+        `uri="${uri}"`,
+        `qop=${challenge.qop}`,
+        `nc=${nc}`,
+        `cnonce="${cnonce}"`,
+        `response="${response}"`,
+    ].join(", ");
+}
+
+async function digestFetch(
+    url: string,
+    options: RequestInit & { headers?: Record<string, string> } = {}
+): Promise<Response> {
+    const { publicKey, privateKey } = getAtlasConfig();
+
+    // First request to get the digest challenge
+    const initialRes = await fetch(url, {
+        ...options,
+        headers: {
+            ...options.headers,
+            Accept: "application/vnd.atlas.2023-02-01+json",
+        },
+    });
+
+    if (initialRes.status !== 401) {
+        return initialRes;
+    }
+
+    const wwwAuth = initialRes.headers.get("www-authenticate");
+    if (!wwwAuth || !wwwAuth.toLowerCase().startsWith("digest")) {
+        return initialRes;
+    }
+
+    const challenge = parseDigestChallenge(wwwAuth);
+    const uri = new URL(url).pathname;
+    const method = (options.method ?? "GET").toUpperCase();
+
+    const authHeader = buildDigestHeader(method, uri, publicKey, privateKey, challenge);
+
+    // Retry with digest auth
+    return fetch(url, {
+        ...options,
+        headers: {
+            ...options.headers,
+            Accept: "application/vnd.atlas.2023-02-01+json",
+            Authorization: authHeader,
+        },
+    });
+}
+
+export async function createAtlasUser(
+    username: string,
+    password: string,
+    dbName: string
+): Promise<void> {
+    const { projectId } = getAtlasConfig();
+
+    const payload: AtlasUserPayload = {
+        databaseName: "admin",
+        groupId: projectId,
+        roles: [
+            {
+                roleName: "readWrite",
+                databaseName: dbName,
+            },
+        ],
+        username,
+        password,
+    };
+
+    const res = await digestFetch(
+        `${ATLAS_BASE_URL}/groups/${projectId}/databaseUsers`,
+        {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+        }
+    );
+
+    if (!res.ok) {
+        const body = await res.text();
+        throw new Error(`Atlas createUser failed (${res.status}): ${body}`);
+    }
+}
+
+export async function deleteAtlasUser(username: string): Promise<void> {
+    const { projectId } = getAtlasConfig();
+
+    const res = await digestFetch(
+        `${ATLAS_BASE_URL}/groups/${projectId}/databaseUsers/admin/${encodeURIComponent(username)}`,
+        { method: "DELETE" }
+    );
+
+    if (res.status === 404) {
+        return;
+    }
+
+    if (!res.ok) {
+        const body = await res.text();
+        throw new Error(`Atlas deleteUser failed (${res.status}): ${body}`);
+    }
+}
