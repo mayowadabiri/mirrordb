@@ -1,3 +1,4 @@
+import { MongoClient } from "mongodb";
 import { Client } from "pg";
 
 export const validatePgConnection = async (client: Client) => {
@@ -28,3 +29,20 @@ export async function assertTablesExist(client: Client) {
         await client.end();
     }
 }
+
+
+export const validateMongoConnection = async (url: string, dbName?: string) => {
+    const client = new MongoClient(url, {
+        connectTimeoutMS: 5_000,
+        serverSelectionTimeoutMS: 5_000,
+    });
+    await client.connect();
+    if (dbName) {
+        const db = client.db(dbName);
+        const collections = await db.listCollections({}, { nameOnly: true }).toArray();
+        await client.close(true);
+        return collections;
+    }
+    await client.close(true);
+    return [];
+};

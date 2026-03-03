@@ -2,21 +2,6 @@ import axios from "axios";
 
 const baseUrl = "https://console.neon.tech/api/v2";
 
-export function sanitizeDatabaseName(
-    targetDbId: string,
-    targetDbName: string,
-    maxLength: number = 63
-): string {
-    const maxNameLength = maxLength - targetDbId.length - 1;
-
-    let sanitizedName = targetDbName.toLowerCase().replace(/-/g, "_");
-    if (sanitizedName.length > maxNameLength) {
-        sanitizedName = sanitizedName.substring(0, maxNameLength);
-    }
-
-    return `${targetDbId}_${sanitizedName}`;
-}
-
 function getNeonConfig() {
     const apiKey = process.env.NEON_API_KEY;
     const projectId = process.env.NEON_PROJECT_ID;
