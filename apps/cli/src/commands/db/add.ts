@@ -117,3 +117,4 @@ export function addDbCommand(): Command {
 
     return command;
 }
+

@@ -28,10 +28,12 @@ function cleanupFiles(...paths: (string | null)[]) {
 export async function streamDumpAndRestore({
     source,
     targetUri,
+    signal,
     onLog = () => { },
 }: {
     source: ICredentials;
     targetUri: string;
+    signal?: AbortSignal;
     onLog?: (msg: string) => void;
 }) {
     let dump: ReturnType<typeof spawn> | null = null;
@@ -39,6 +41,13 @@ export async function streamDumpAndRestore({
     let tmpDir: string | null = null;
     let sourcePgpassPath: string | null = null;
     let targetPgpassPath: string | null = null;
+
+    // Declared outside try so it's accessible in finally
+    const onAbort = () => {
+        dump?.kill("SIGTERM");
+        restore?.kill("SIGTERM");
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
 
     try {
         tmpDir = mkdtempSync(join(tmpdir(), "mirrordb-"));
@@ -134,6 +143,7 @@ export async function streamDumpAndRestore({
         restore?.kill("SIGTERM");
         throw err;
     } finally {
+        signal?.removeEventListener("abort", onAbort);
         cleanupFiles(sourcePgpassPath, targetPgpassPath);
         if (tmpDir) try { rmdirSync(tmpDir); } catch { /* ignore */ }
     }

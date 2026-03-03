@@ -1,47 +1,9 @@
 import { Client } from "pg";
 import { BadRequestError } from "./appError";
-import { MongoClient } from "mongodb";
 import mysql from "mysql2/promise";
+import ConnectionString from "mongodb-connection-string-url";
 
-export const validatePgConnection = async (client: Client) => {
-    try {
-        await client.connect()
-        await client.query("SELECT 1")
-    } catch {
-        throw new BadRequestError("Database connection failed", {
-            code: "DATABASE_CONNECTION_FAILED",
-        });
-    } finally {
-        await client.end().catch(() => { });
-    }
-}
 
-export const validateMongoConnection = async (url: string) => {
-    const client = new MongoClient(url, {
-        connectTimeoutMS: 5_000,
-        serverSelectionTimeoutMS: 5_000,
-    });
-
-    try {
-        await client.connect();
-
-        await client.db().command({ ping: 1 });
-
-        return;
-    } catch {
-        // Swallow ALL mongo errors and rethrow yours
-        throw new BadRequestError("Database connection failed", {
-            code: "DATABASE_CONNECTION_FAILED",
-        });
-    } finally {
-        // Ensure shutdown completes before function exits
-        try {
-            await client.close(true);
-        } catch {
-            // ignore close errors
-        }
-    }
-};
 
 export const validateMySqlConnection = async (config: mysql.ConnectionOptions) => {
     let connection: mysql.Connection | null = null;
@@ -87,4 +49,51 @@ export async function assertTablesExist(client: Client) {
     } finally {
         await client.end();
     }
+}
+
+
+export interface ParsedMongoUri {
+    protocol: "mongodb" | "mongodb+srv";
+    username?: string;
+    password?: string;
+    hosts: string[];
+    database?: string;
+    options: Record<string, string>;
+    isSrv: boolean;
+    originalUri: string;
+}
+
+export function parseMongoUri(uri: string): ParsedMongoUri {
+    const conn = new ConnectionString(uri);
+
+    const protocol = conn.protocol.replace(":", "") as
+        | "mongodb"
+        | "mongodb+srv";
+
+    const username = conn.username || undefined;
+    const password = conn.password || undefined;
+
+    // Handles multiple hosts (replica sets)
+    const hosts = conn.hosts;
+
+    // Remove leading slash
+    const rawPath = conn.pathname?.replace(/^\//, "");
+    const database = rawPath && rawPath.length > 0 ? rawPath : undefined;
+
+    // Extract query params cleanly
+    const options: Record<string, string> = {};
+    conn.searchParams.forEach((value, key) => {
+        options[key] = value;
+    });
+
+    return {
+        protocol,
+        username,
+        password,
+        hosts,
+        database,
+        options,
+        isSrv: protocol === "mongodb+srv",
+        originalUri: uri,
+    };
 }

@@ -1,7 +1,7 @@
 import { FastifyInstance } from "fastify";
 import { mfaMiddleware } from "../../middleware/mfa";
 import { AddDbPayload, DbCredentialsPayload } from "@mirrordb/types";
-import { addDatabase, connectDatabase, forkDatabase, getDatabase, listDatabases } from "../../services/db";
+import { addDatabase, cancelClone, connectDatabase, forkDatabase, getDatabase, listDatabases } from "../../services/db";
 import { createEmitter } from "../../utils/emit";
 import { tunnelOrchestrator } from "../../fork/tunnel/tunnelOrchestrator";
 import crypto from "crypto";
@@ -120,8 +120,7 @@ export function dbRoutes(app: FastifyInstance) {
                         clearInterval(interval);
                         reply.raw.end();
                     }
-                } catch (err) {
-                    console.error("SSE polling error:", err);
+                } catch {
                     clearInterval(interval);
                     reply.raw.end();
                 }
@@ -134,39 +133,8 @@ export function dbRoutes(app: FastifyInstance) {
     );
 
     app.patch<{ Params: { cloneId: string } }>("/:cloneId/cancel", { preHandler: [mfaMiddleware] }, async (request, reply) => {
-        const { cloneId } = request.params;
-        console.log("---------------------")
-        console.log("---------------------")
-        console.log(`Cancellation requested for cloneId: ${cloneId}`)
-        console.log("---------------------")
-        console.log("---------------------")
-
-        const clone = await app.prisma.databaseClone.findUnique({
-            where: { id: request.params.cloneId },
-            include: {
-                forkedDatabase: true
-            }
-        });
-
-        if (!clone) {
-            return reply.status(404).send({ message: "Clone not found" });
-        }
-
-        if (
-            clone.status === "COMPLETED" ||
-            clone.status === "FAILED" ||
-            clone.status === "CANCELLED"
-        ) {
-            return reply.send({ message: "Clone already finished." });
-        }
-
-        await app.prisma.databaseClone.update({
-            where: { id: cloneId },
-            data: {
-                status: "CANCELLING",
-                cancelledAt: new Date()
-            }
-        })
+        const clone = await cancelClone(app.prisma, request.params.cloneId);
+        reply.send({ success: true, data: clone });
     })
 
     app.get<{ Params: { cloneId: string } }>("/:cloneId/tunnel", { preHandler: [mfaMiddleware] }, async (request, reply) => {
@@ -174,7 +142,8 @@ export function dbRoutes(app: FastifyInstance) {
         const clone = await app.prisma.databaseClone.findUnique({
             where: { id: cloneId },
             include: {
-                forkedDatabase: true
+                forkedDatabase: true,
+                sourceDatabase: true,
             }
         });
 

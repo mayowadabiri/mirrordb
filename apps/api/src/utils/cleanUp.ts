@@ -17,6 +17,6 @@ export const cleanup = async (cloneId: string) => {
     const targetDb = await prisma.forkedDatabase.findUniqueOrThrow({
         where: { id: cloneDb.forkedDatabaseId! }
     });
-    const targetDbName = sanitizeDatabaseName(targetDb.id, targetDb.name);
+    const targetDbName = sanitizeDatabaseName(targetDb.name);
     await neon.deleteDatabase(targetDbName);
 }

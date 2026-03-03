@@ -1,27 +1,37 @@
 import { Client } from "pg";
 import { prisma } from "@mirrordb/database";
-import { decrypt, encrypt, neon, sanitizeDatabaseName, validatePgConnection } from "@mirrordb/utils";
+import { decrypt, neon, sanitizeDatabaseName, validatePgConnection } from "@mirrordb/utils";
 import { streamDumpAndRestore } from "./actions";
+import { encryptPayload } from "../../utils/cloneDb";
+import { checkAborted } from "../../utils/cancellationMonitor";
 
 
 class PostgresDriver {
     cloneId: string;
     forkedDatabaseId: string;
     sourceDbId: string;
-    private client!: Client
+    private client!: Client;
     private connectionUri!: string;
+    private signal: AbortSignal;
+    private targetDbCreated = false;
 
-    constructor(cloneId: string, forkedDatabaseId: string, sourceDbId: string) {
+    constructor(
+        cloneId: string,
+        forkedDatabaseId: string,
+        sourceDbId: string,
+        signal: AbortSignal,
+    ) {
         this.cloneId = cloneId;
         this.forkedDatabaseId = forkedDatabaseId;
         this.sourceDbId = sourceDbId;
+        this.signal = signal;
     }
 
 
     private async getSourceClient() {
         const credentials = await prisma.databaseCredential.findFirstOrThrow({
             where: { databaseId: this.sourceDbId, isActive: true }
-        })
+        });
         const decryptedCredentials = decrypt(credentials.encryptedPayload);
         const parsedCredentials = JSON.parse(decryptedCredentials);
         const client = new Client({
@@ -33,28 +43,27 @@ class PostgresDriver {
             connectionTimeoutMillis: 5_000,
             query_timeout: 5_000,
         });
-        await validatePgConnection(client)
+        await validatePgConnection(client);
         this.client = client;
     }
 
     private async createTargetRole() {
         const sourceDb = await prisma.database.findUniqueOrThrow({
             where: { id: this.sourceDbId }
-        })
+        });
         try {
             const roleExist = await neon.getExistingRole(sourceDb.ownerUserId).catch(() => null);
-            console.log("Role existence check result:", roleExist);
             if (roleExist) {
                 return roleExist;
             }
-            const response = await neon.createRole(sourceDb.ownerUserId);
+            const response = await neon.createRole(`user_${sourceDb.ownerUserId}`);
             return response.data;
         } catch {
             return {
                 role: {
-                    name: sourceDb.ownerUserId
+                    name: `user_${sourceDb.ownerUserId}`
                 }
-            }
+            };
         }
     }
 
@@ -62,14 +71,15 @@ class PostgresDriver {
         const result = await this.createTargetRole();
         const targetDb = await prisma.forkedDatabase.findUniqueOrThrow({
             where: { id: this.forkedDatabaseId }
-        })
+        });
         const payload = {
             database: {
-                name: sanitizeDatabaseName(targetDb.id, targetDb.name),
+                name: `fork_${targetDb.id}`,
                 owner_name: result.role.name,
             }
-        }
+        };
         const response = await neon.createDatabase(payload);
+        this.targetDbCreated = true;
         const database = response.data.database;
         const operations = response.data.operations;
 
@@ -78,21 +88,14 @@ class PostgresDriver {
             endpoint_id: operations[0].endpoint_id,
             database_name: database.name,
             role_name: database.owner_name,
-        }
+        };
 
         const connectionInfo = await neon.getConnectionUri(params);
         this.connectionUri = connectionInfo.uri;
-        const encryptedPayload = encrypt(JSON.stringify(connectionInfo));
-        await prisma.forkedDatabase.update({
-            where: { id: this.forkedDatabaseId },
-            data: {
-                encryptedPayload
-            }
-        })
+        await encryptPayload(connectionInfo.uri, this.forkedDatabaseId);
     }
 
     private async mirrorData() {
-
         const { host, port, user, password, database } = this.client;
         if (!user || !password || !database) {
             throw new Error("Source database client is missing required connection fields");
@@ -102,31 +105,29 @@ class PostgresDriver {
         await streamDumpAndRestore({
             source,
             targetUri: this.connectionUri,
-            onLog: (msg) => console.log(msg),
+            signal: this.signal,
+            onLog: () => {},
         });
-        await prisma.databaseClone.update({
-            where: { id: this.cloneId },
-            data: {
-                status: "COMPLETED",
-                completedAt: new Date()
-            }
-        })
-
     }
 
-    async cleanUp() {
-        const clone = await prisma.databaseClone.findUnique({
-            where: { id: this.cloneId }
-        });
-        if (clone?.status === "CANCELLING") {
-            await this.deleteDatabase();
-            await prisma.databaseClone.update({
-                where: { id: this.cloneId },
-                data: {
-                    status: "CANCELLED",
-                    completedAt: new Date()
-                }
-            })
+    /**
+     * Idempotent cleanup: deletes the target Neon database and closes pg client.
+     * Safe to call multiple times — ignores "not found" errors.
+     */
+    async cancel() {
+        try {
+            if (this.targetDbCreated) {
+                await this.deleteDatabase().catch(() => {});
+            }
+        } catch {
+            // Cleanup is best-effort
+        }
+        try {
+            if (this.client) {
+                await this.client.end().catch(() => { /* ignore */ });
+            }
+        } catch {
+            /* ignore */
         }
     }
 
@@ -134,18 +135,21 @@ class PostgresDriver {
         const targetDb = await prisma.forkedDatabase.findUniqueOrThrow({
             where: { id: this.forkedDatabaseId }
         });
-        const targetDbName = sanitizeDatabaseName(targetDb.id, targetDb.name);
+        const targetDbName = sanitizeDatabaseName(targetDb.name);
         await neon.deleteDatabase(targetDbName);
     }
 
     async fork() {
         await this.getSourceClient();
-        await this.initializeTargetDb();
-        await this.cleanUp()
-        await this.mirrorData();
-        await this.cleanUp()
-    }
 
+        checkAborted(this.signal, this.cloneId);
+
+        await this.initializeTargetDb();
+
+        checkAborted(this.signal, this.cloneId);
+
+        await this.mirrorData();
+    }
 }
 
 export default PostgresDriver;

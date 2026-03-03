@@ -29,9 +29,7 @@ export default function LoginPage() {
             })
             window.location.href = '/auth/success'
         },
-        onError: (error) => {
-            console.error('Google login failed:', error)
-        },
+        onError: () => {},
     })
 
     return (

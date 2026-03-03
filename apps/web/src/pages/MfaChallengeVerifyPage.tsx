@@ -34,8 +34,8 @@ export default function MfaChallengeVerifyPage() {
             })
             // On success, redirect to success page
             navigate({ to: '/auth/success' })
-        } catch (err) {
-            console.error(err)
+        } catch {
+            // Error is handled by react-query's isError state
         }
     }
 

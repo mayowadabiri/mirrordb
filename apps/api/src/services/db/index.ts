@@ -2,8 +2,8 @@ import { DatabaseClone, DatabaseEngine, DatabaseStatus, PrismaClient, User } fro
 import { AddDbPayload, DbCredentialsMethod, DbCredentialsPayload } from "@mirrordb/types";
 import { BadRequestError } from "../../utils/appError";
 import { Client } from "pg"
-import { encrypt } from "@mirrordb/utils";
-import { validateMongoConnection, validatePgConnection, validateMySqlConnection } from "../../utils/dbConnector";
+import { encrypt, validateMongoConnection, validatePgConnection } from "@mirrordb/utils";
+import { validateMySqlConnection, parseMongoUri } from "../../utils/dbConnector";
 import { prisma } from "../../lib/prisma";
 import { forkQueue } from "@mirrordb/queue";
 import { getJobType } from "../../utils/helper";
@@ -100,8 +100,18 @@ export const connectDatabase = async (
             })
             await validatePgConnection(client)
         } else if (database.engine === DatabaseEngine.MONGODB) {
-            console.log(creds.uri)
-            await validateMongoConnection(creds.uri)
+            const parsedUri = parseMongoUri(creds.uri);
+            if (!parsedUri.database) {
+                throw new BadRequestError("Database name is required in MongoDB URI", {
+                    code: "MONGODB_URI_DATABASE_REQUIRED"
+                });
+            }
+            const collections = await validateMongoConnection(creds.uri, parsedUri.database)
+            if (collections.length === 0) {
+                throw new BadRequestError("No collections found in MongoDB database", {
+                    code: "MONGODB_NO_COLLECTIONS"
+                });
+            }
         } else if (database.engine === DatabaseEngine.MYSQL) {
             await validateMySqlConnection({ uri: creds.uri })
         }
@@ -204,7 +214,7 @@ export const forkDatabase = async (prisma: PrismaClient, id: string, userId: str
     const cloneId = await prisma.$transaction(async (tx) => {
         const forkedDb = await tx.forkedDatabase.create({
             data: {
-                name: `${sourceDb.name}-fork-${Date.now()}`,
+                name: `fork_${Date.now()}`,
                 sourceDatabaseId: sourceDb.id,
                 ownerUserId: userId,
             },
@@ -215,7 +225,7 @@ export const forkDatabase = async (prisma: PrismaClient, id: string, userId: str
                 id: forkedDb.id
             },
             data: {
-                name: `${sourceDb.name}-fork-${forkedDb.id}`
+                name: `fork_${sourceDb.name}_${forkedDb.id.slice(0, 8)}`,
             }
         })
 
@@ -270,6 +280,42 @@ export const updateDatabaseCloneStatus = async (cloneId: string, payload: Databa
             ...payload
         }
     })
+}
+
+
+export const cancelClone = async (prisma: PrismaClient, cloneId: string) => {
+    const clone = await prisma.databaseClone.findUnique({
+        where: { id: cloneId },
+        include: {
+            forkedDatabase: true
+        }
+    });
+
+    if (!clone) {
+        throw new BadRequestError("Clone not found", {
+            code: "CLONE_NOT_FOUND",
+        });
+    }
+
+    if (
+        clone.status === "COMPLETED" ||
+        clone.status === "FAILED" ||
+        clone.status === "CANCELLED"
+    ) {
+        throw new BadRequestError("Clone already finished", {
+            code: "CLONE_ALREADY_FINISHED",
+        });
+    }
+
+    await prisma.databaseClone.update({
+        where: { id: cloneId },
+        data: {
+            status: "CANCELLING",
+            cancelledAt: new Date()
+        }
+    });
+
+    return clone;
 }
 
 

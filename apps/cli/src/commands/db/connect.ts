@@ -2,7 +2,7 @@ import { Command } from "commander";
 import { authGuard } from "../../hooks/authGuard.js";
 import { mfaGuard } from "../../hooks/mfaGuard.js";
 import { connectDatabase, getDatabase } from "../../api/db.js";
-import { getErrorData } from "../../utils/errors.js";
+import { getErrorData, getErrorMessage } from "../../utils/errors.js";
 import { readConfig, writeConfig } from "../../utils/config.js";
 import chalk from "chalk";
 import Table from "cli-table3";
@@ -191,13 +191,24 @@ export function connectDatabaseCommand(): Command {
 
             } catch (error) {
                 const data = getErrorData(error)
+                const message = getErrorMessage(error)
                 const code = data?.details?.code;
                 if (code === "DATABASE_NOT_FOUND") {
-                    console.log(chalk.red("No database found with that name or ID"))
+                    console.log(chalk.red(message))
                     console.log(chalk.red("Please check your database name or ID. Run `mirrordb db list` to list all databases"))
                     process.exit(0)
                 }
-                console.log(chalk.red("Database connection failed"))
+                if (code === "MONGODB_URI_DATABASE_REQUIRED") {
+                    console.log(chalk.red(message))
+                    console.log(chalk.red("Please add the database name to your MongoDB URI. For example: mongodb+srv://user:pass@host:port/database"))
+                    process.exit(0)
+                }
+                if (code === "MONGODB_NO_COLLECTIONS") {
+                    console.log(chalk.red(message))
+                    console.log(chalk.red("Please check your MongoDB database. Make sure it has at least one collection."))
+                    process.exit(0)
+                }
+                console.log(chalk.red(message))
                 console.log(chalk.red("Please check your database credentials."))
                 process.exit(0)
             }

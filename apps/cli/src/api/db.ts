@@ -76,12 +76,12 @@ export const streamFork = async (
             buffer = lines.pop() ?? "";
 
             for (const line of lines) {
-                if (line.startsWith("event:")) {
+                if (line && line.startsWith("event:")) {
                     currentEvent = line.replace("event:", "").trim();
                     continue;
                 }
 
-                if (line.startsWith("data:")) {
+                if (line && line.startsWith("data:")) {
                     const raw = line.replace("data:", "").trim();
 
                     let payload: any = raw;
