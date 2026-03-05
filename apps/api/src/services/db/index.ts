@@ -6,7 +6,7 @@ import { encrypt, validateMongoConnection, validatePgConnection } from "@mirrord
 import { validateMySqlConnection, parseMongoUri } from "../../utils/dbConnector";
 import { prisma } from "../../lib/prisma";
 import { forkQueue } from "@mirrordb/queue";
-import { getJobType } from "../../utils/helper";
+import { getForkQueueName } from "../../utils/helper";
 
 
 
@@ -240,7 +240,7 @@ export const forkDatabase = async (prisma: PrismaClient, id: string, userId: str
         return cloned.id;
     });
 
-    const forkType = getJobType(sourceDb.engine);
+    const forkType = getForkQueueName(sourceDb.engine);
 
     await forkQueue.add(forkType, {
         cloneId: cloneId,

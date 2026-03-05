@@ -4,8 +4,21 @@ import { generateStrongPassword } from "../../utils/security";
 import { buildMongoUri, createDatabaseUser, deleteDatabaseUser, dropMongoDatabase, forkMongoDatabase } from "./actions";
 import { encryptPayload } from "../../utils/cloneDb";
 import { checkAborted } from "../../utils/cancellationMonitor";
+import type { IForkDriver } from "../types";
 
-class MongoDbDriver {
+async function waitForMongoAuth(uri: string, retries = 5, delayMs = 3000): Promise<void> {
+    for (let i = 1; i <= retries; i++) {
+        try {
+            await validateMongoConnection(uri);
+            return;
+        } catch (err) {
+            if (i === retries) throw err;
+            await new Promise((r) => setTimeout(r, delayMs * Math.pow(2, i - 1)));
+        }
+    }
+}
+
+class MongoDbDriver implements IForkDriver {
     cloneId: string;
     targetDatabaseId: string;
     sourceDatabaseId: string;
@@ -84,8 +97,7 @@ class MongoDbDriver {
         await createDatabaseUser(username, password, dbName);
         this.atlasUsername = username;
         const targetUri = buildMongoUri(username, password, dbName);
-
-        await validateMongoConnection(targetUri);
+        await waitForMongoAuth(targetUri);
         await encryptPayload(targetUri, this.targetDatabaseId);
     }
 
@@ -93,16 +105,10 @@ class MongoDbDriver {
     async cancel() {
         try {
             if (this.atlasUsername) {
-                await deleteDatabaseUser(this.atlasUsername).catch(() => {});
+                await deleteDatabaseUser(this.atlasUsername)
             }
             if (this.targetDbCreated) {
-                const forkedDb = await prisma.forkedDatabase.findUnique({
-                    where: { id: this.targetDatabaseId }
-                });
-                if (forkedDb) {
-                    const dbName = sanitizeDatabaseName(forkedDb.name, 38);
-                    await dropMongoDatabase(dbName).catch(() => {});
-                }
+                await dropMongoDatabase(this.targetDbName)
             }
         } catch {
             // Cleanup is best-effort

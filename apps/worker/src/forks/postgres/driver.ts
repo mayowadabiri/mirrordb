@@ -4,9 +4,10 @@ import { decrypt, neon, sanitizeDatabaseName, validatePgConnection } from "@mirr
 import { streamDumpAndRestore } from "./actions";
 import { encryptPayload } from "../../utils/cloneDb";
 import { checkAborted } from "../../utils/cancellationMonitor";
+import type { IForkDriver } from "../types";
 
 
-class PostgresDriver {
+class PostgresDriver implements IForkDriver {
     cloneId: string;
     forkedDatabaseId: string;
     sourceDbId: string;
@@ -51,20 +52,22 @@ class PostgresDriver {
         const sourceDb = await prisma.database.findUniqueOrThrow({
             where: { id: this.sourceDbId }
         });
+        const user = `user_${sourceDb.ownerUserId}`;
         try {
-            const roleExist = await neon.getExistingRole(sourceDb.ownerUserId).catch(() => null);
+            const roleExist = await neon.getExistingRole(user)
             if (roleExist) {
                 return roleExist;
             }
-            const response = await neon.createRole(`user_${sourceDb.ownerUserId}`);
+            const response = await neon.createRole(user);
             return response.data;
         } catch {
             return {
                 role: {
-                    name: `user_${sourceDb.ownerUserId}`
+                    name: user
                 }
             };
         }
+
     }
 
     private async initializeTargetDb() {
@@ -106,18 +109,15 @@ class PostgresDriver {
             source,
             targetUri: this.connectionUri,
             signal: this.signal,
-            onLog: () => {},
+            onLog: () => { },
         });
     }
 
-    /**
-     * Idempotent cleanup: deletes the target Neon database and closes pg client.
-     * Safe to call multiple times — ignores "not found" errors.
-     */
+
     async cancel() {
         try {
             if (this.targetDbCreated) {
-                await this.deleteDatabase().catch(() => {});
+                await this.deleteDatabase().catch(() => { });
             }
         } catch {
             // Cleanup is best-effort

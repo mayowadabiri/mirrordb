@@ -3,6 +3,7 @@ import { writeFileSync, unlinkSync, mkdtempSync, rmdirSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 import { URL } from "url";
+import { waitForProcess } from "../../utils/process";
 
 
 interface ICredentials {
@@ -149,17 +150,3 @@ export async function streamDumpAndRestore({
     }
 }
 
-
-function waitForProcess(
-    proc: ReturnType<typeof spawn>,
-    name: string
-) {
-    return new Promise<void>((resolve, reject) => {
-        proc.on("error", reject);
-
-        proc.on("close", (code) => {
-            if (code === 0) resolve();
-            else reject(new Error(`${name} exited with code ${code}`));
-        });
-    });
-}

@@ -3,10 +3,10 @@ import { mfaMiddleware } from "../../middleware/mfa";
 import { AddDbPayload, DbCredentialsPayload } from "@mirrordb/types";
 import { addDatabase, cancelClone, connectDatabase, forkDatabase, getDatabase, listDatabases } from "../../services/db";
 import { createEmitter } from "../../utils/emit";
-import { tunnelOrchestrator } from "../../fork/tunnel/tunnelOrchestrator";
+import { tunnelOrchestrator } from "../../tunnel";
 import crypto from "crypto";
-import { cleanup } from "../../utils/cleanUp";
-// import { cleanup } from "../../fork/cleanup";
+import { cleanupQueue } from "@mirrordb/queue";
+import { getCleanupQueueName } from "../../utils/helper";
 
 
 const forkSessions = new Map<
@@ -179,10 +179,18 @@ export function dbRoutes(app: FastifyInstance) {
             reply.raw.write(": keep-alive\n\n");
         }, 30000);
 
-        // Must register BEFORE the blocking await so it fires when the client disconnects
         request.raw.on("close", async () => {
             clearInterval(interval);
-            await cleanup(cloneId)
+            const cleanupName = getCleanupQueueName(clone.sourceDatabase.engine)
+            await cleanupQueue.add(cleanupName, {
+                cloneId: cloneId,
+                forkedDatabaseId: clone.forkedDatabaseId,
+            }, {
+                attempts: 3,
+                backoff: { type: 'exponential', delay: 5000 },
+                removeOnComplete: true,
+                removeOnFail: false,
+            })
             forkSessions.delete(session);
         });
 

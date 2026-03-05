@@ -1,6 +1,7 @@
 import { spawn } from "child_process";
 import { MongoClient } from "mongodb";
 import { createAtlasUser, deleteAtlasUser } from "./atlas";
+import { waitForProcess } from "../../utils/process";
 
 
 export const createDatabaseUser = async (username: string, password: string, dbName: string) => {
@@ -14,9 +15,9 @@ export const deleteDatabaseUser = async (username: string) => {
 }
 
 export const dropMongoDatabase = async (dbName: string) => {
-    const adminUri = process.env.MONGODB_ADMIN_URI;
+    const adminUri = process.env.MONGODB_CLUSTER_URI;
     if (!adminUri) {
-        throw new Error("MONGODB_ADMIN_URI environment variable is required");
+        throw new Error("MONGODB_CLUSTER_URI environment variable is required");
     }
     const client = new MongoClient(adminUri);
     try {
@@ -149,18 +150,4 @@ export async function forkMongoDatabase({
         restore?.kill("SIGTERM");
         throw err;
     }
-}
-
-function waitForProcess(
-    proc: ReturnType<typeof spawn>,
-    name: string
-) {
-    return new Promise<void>((resolve, reject) => {
-        proc.on("error", reject);
-
-        proc.on("close", (code) => {
-            if (code === 0) resolve();
-            else reject(new Error(`${name} exited with code ${code}`));
-        });
-    });
 }

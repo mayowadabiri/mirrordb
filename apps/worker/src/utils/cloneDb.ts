@@ -1,5 +1,5 @@
 import { prisma } from "@mirrordb/database";
-import { encrypt } from "../../../../packages/utils/dist/security";
+import { encrypt } from "@mirrordb/utils";
 
 export const validateCloneDb = async (cloneId: string) => {
     if (!cloneId) {

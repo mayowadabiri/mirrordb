@@ -76,6 +76,9 @@ async function digestFetch(
     options: RequestInit & { headers?: Record<string, string> } = {}
 ): Promise<Response> {
     const { publicKey, privateKey } = getAtlasConfig();
+    const method = (options.method ?? "GET").toUpperCase();
+
+    console.log(`[atlas] ${method} ${url}`);
 
     // First request to get the digest challenge
     const initialRes = await fetch(url, {
@@ -87,22 +90,23 @@ async function digestFetch(
     });
 
     if (initialRes.status !== 401) {
+        console.log(`[atlas] ${method} ${url} → ${initialRes.status} (no digest challenge needed)`);
         return initialRes;
     }
 
     const wwwAuth = initialRes.headers.get("www-authenticate");
     if (!wwwAuth || !wwwAuth.toLowerCase().startsWith("digest")) {
+        console.warn(`[atlas] ${method} ${url} → 401 but no Digest www-authenticate header found`);
         return initialRes;
     }
 
     const challenge = parseDigestChallenge(wwwAuth);
     const uri = new URL(url).pathname;
-    const method = (options.method ?? "GET").toUpperCase();
 
     const authHeader = buildDigestHeader(method, uri, publicKey, privateKey, challenge);
 
     // Retry with digest auth
-    return fetch(url, {
+    const authRes = await fetch(url, {
         ...options,
         headers: {
             ...options.headers,
@@ -110,6 +114,9 @@ async function digestFetch(
             Authorization: authHeader,
         },
     });
+
+    console.log(`[atlas] ${method} ${url} → ${authRes.status} (after digest auth)`);
+    return authRes;
 }
 
 export async function createAtlasUser(
@@ -118,6 +125,8 @@ export async function createAtlasUser(
     dbName: string
 ): Promise<void> {
     const { projectId } = getAtlasConfig();
+
+    console.log(`[atlas] Creating user "${username}" with readWrite on db "${dbName}"`);
 
     const payload: AtlasUserPayload = {
         databaseName: "admin",
@@ -143,24 +152,31 @@ export async function createAtlasUser(
 
     if (!res.ok) {
         const body = await res.text();
+        console.error(`[atlas] createUser failed for "${username}" — status=${res.status}, body=${body}`);
         throw new Error(`Atlas createUser failed (${res.status}): ${body}`);
     }
+
+    console.log(`[atlas] Successfully created user "${username}"`);
 }
 
 export async function deleteAtlasUser(username: string): Promise<void> {
     const { projectId } = getAtlasConfig();
+    const url = `${ATLAS_BASE_URL}/groups/${projectId}/databaseUsers/admin/${encodeURIComponent(username)}`;
 
-    const res = await digestFetch(
-        `${ATLAS_BASE_URL}/groups/${projectId}/databaseUsers/admin/${encodeURIComponent(username)}`,
-        { method: "DELETE" }
-    );
+    console.log(`[atlas] Deleting user "${username}" — DELETE ${url}`);
+
+    const res = await digestFetch(url, { method: "DELETE" });
 
     if (res.status === 404) {
+        console.warn(`[atlas] User "${username}" not found (404) — may have already been deleted or username is wrong`);
         return;
     }
 
     if (!res.ok) {
         const body = await res.text();
+        console.error(`[atlas] deleteUser failed for "${username}" — status=${res.status}, body=${body}`);
         throw new Error(`Atlas deleteUser failed (${res.status}): ${body}`);
     }
+
+    console.log(`[atlas] Successfully deleted user "${username}"`);
 }

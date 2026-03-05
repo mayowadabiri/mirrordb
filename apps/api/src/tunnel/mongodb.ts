@@ -4,7 +4,7 @@ import dns from "dns/promises";
 import crypto from "crypto";
 import { BSON } from "bson";
 import { decrypt } from "@mirrordb/utils";
-import { parseMongoUri } from "../../utils/dbConnector";
+import { parseMongoUri } from "../utils/dbConnector";
 import { TunnelParams, getFreePort } from "./helpers";
 
 const OP_MSG = 2013;
@@ -395,7 +395,6 @@ async function handleMongoClient(
     }
 }
 
-// ── MongoDB Tunnel ──────────────────────────────────────────────────
 
 export async function mongodbTunnel({
     clone,
