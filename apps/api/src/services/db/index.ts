@@ -170,7 +170,7 @@ export const connectDatabase = async (
         await tx.databaseCredential.create({
             data: {
                 databaseId: database.id,
-                type: "PASSWORD",
+                type: body.method,
                 encryptedPayload,
                 isActive: true,
             },

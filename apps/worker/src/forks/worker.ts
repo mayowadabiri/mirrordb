@@ -71,6 +71,7 @@ const worker = new Worker(
             await driver.fork();
             await markCloneCompleted(clone.id);
         } catch (error) {
+            console.log(error)
             if (error instanceof CancellationError) {
                 if (driver) {
                     await driver.cancel().catch(() => { });

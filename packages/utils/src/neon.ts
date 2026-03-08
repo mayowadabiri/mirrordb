@@ -69,6 +69,13 @@ const neon = {
             `/projects/${projectId}/branches/${branchId}/databases/${databaseName}`
         );
     },
+    async deleteRoleName(roleName: string) {
+        const { projectId, branchId } = getNeonConfig();
+        const client = createNeonClient();
+        return await client.delete(
+            `/projects/${projectId}/branches/${branchId}/roles/${roleName}`
+        );
+    },
 
     async getExistingRole(roleName: string) {
         const { projectId, branchId } = getNeonConfig();

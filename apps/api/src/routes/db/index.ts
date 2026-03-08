@@ -1,6 +1,6 @@
 import { FastifyInstance } from "fastify";
 import { mfaMiddleware } from "../../middleware/mfa";
-import { AddDbPayload, DbCredentialsPayload } from "@mirrordb/types";
+import { AddDbPayload, DbCredentialsMethod, DbCredentialsPayload } from "@mirrordb/types";
 import { addDatabase, cancelClone, connectDatabase, forkDatabase, getDatabase, listDatabases } from "../../services/db";
 import { createEmitter } from "../../utils/emit";
 import { tunnelOrchestrator } from "../../tunnel";
@@ -147,6 +147,13 @@ export function dbRoutes(app: FastifyInstance) {
             }
         });
 
+        const credential = await app.prisma.databaseCredential.findFirstOrThrow({
+            where: {
+                databaseId: clone?.sourceDatabaseId,
+                isActive: true
+            }
+        },)
+
         if (!clone || !clone.forkedDatabase) {
             reply.code(404).send();
             return;
@@ -199,6 +206,7 @@ export function dbRoutes(app: FastifyInstance) {
 
             await tunnelOrchestrator({
                 clone,
+                credentialType: credential.type as DbCredentialsMethod,
                 emit,
                 isSessionAlive: () => forkSessions.has(session),
             });

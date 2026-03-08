@@ -9,29 +9,37 @@ import type { IForkDriver } from "../types";
 
 class PostgresDriver implements IForkDriver {
     cloneId: string;
-    forkedDatabaseId: string;
-    sourceDbId: string;
+    targetDatabaseId: string;
+    sourceDatabaseId: string;
     private client!: Client;
     private connectionUri!: string;
     private signal: AbortSignal;
     private targetDbCreated = false;
+    private targetDbName!: string;
 
     constructor(
         cloneId: string,
-        forkedDatabaseId: string,
-        sourceDbId: string,
+        targetDatabaseId: string,
+        sourceDatabaseId: string,
         signal: AbortSignal,
     ) {
         this.cloneId = cloneId;
-        this.forkedDatabaseId = forkedDatabaseId;
-        this.sourceDbId = sourceDbId;
+        this.targetDatabaseId = targetDatabaseId;
+        this.sourceDatabaseId = sourceDatabaseId;
         this.signal = signal;
     }
 
+    private async resolveTargetDbName() {
+        if (this.targetDbName) return;
+        const forkedDb = await prisma.forkedDatabase.findUniqueOrThrow({
+            where: { id: this.targetDatabaseId }
+        });
+        this.targetDbName = sanitizeDatabaseName(forkedDb.name, 38);
+    }
 
     private async getSourceClient() {
         const credentials = await prisma.databaseCredential.findFirstOrThrow({
-            where: { databaseId: this.sourceDbId, isActive: true }
+            where: { databaseId: this.sourceDatabaseId, isActive: true }
         });
         const decryptedCredentials = decrypt(credentials.encryptedPayload);
         const parsedCredentials = JSON.parse(decryptedCredentials);
@@ -49,18 +57,12 @@ class PostgresDriver implements IForkDriver {
     }
 
     private async createTargetRole() {
-        const sourceDb = await prisma.database.findUniqueOrThrow({
-            where: { id: this.sourceDbId }
-        });
-        const user = `user_${sourceDb.ownerUserId}`;
+        const user = `user_${this.targetDatabaseId}`;
         try {
-            const roleExist = await neon.getExistingRole(user)
-            if (roleExist) {
-                return roleExist;
-            }
             const response = await neon.createRole(user);
             return response.data;
-        } catch {
+        } catch (error) {
+            console.log(error);
             return {
                 role: {
                     name: user
@@ -72,12 +74,10 @@ class PostgresDriver implements IForkDriver {
 
     private async initializeTargetDb() {
         const result = await this.createTargetRole();
-        const targetDb = await prisma.forkedDatabase.findUniqueOrThrow({
-            where: { id: this.forkedDatabaseId }
-        });
+
         const payload = {
             database: {
-                name: `fork_${targetDb.id}`,
+                name: this.targetDbName,
                 owner_name: result.role.name,
             }
         };
@@ -95,7 +95,7 @@ class PostgresDriver implements IForkDriver {
 
         const connectionInfo = await neon.getConnectionUri(params);
         this.connectionUri = connectionInfo.uri;
-        await encryptPayload(connectionInfo.uri, this.forkedDatabaseId);
+        await encryptPayload(connectionInfo.uri, this.targetDatabaseId);
     }
 
     private async mirrorData() {
@@ -132,14 +132,13 @@ class PostgresDriver implements IForkDriver {
     }
 
     async deleteDatabase() {
-        const targetDb = await prisma.forkedDatabase.findUniqueOrThrow({
-            where: { id: this.forkedDatabaseId }
-        });
-        const targetDbName = sanitizeDatabaseName(targetDb.name);
-        await neon.deleteDatabase(targetDbName);
+        await neon.deleteDatabase(this.targetDbName);
+        await neon.deleteRoleName(`user_${this.targetDatabaseId}`);
+
     }
 
     async fork() {
+        await this.resolveTargetDbName();
         await this.getSourceClient();
 
         checkAborted(this.signal, this.cloneId);

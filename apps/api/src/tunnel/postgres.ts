@@ -3,9 +3,32 @@ import tls from "tls";
 import crypto from "crypto";
 import { decrypt } from "@mirrordb/utils";
 import { TunnelParams, getFreePort } from "./helpers";
+import { DbCredentialsMethod } from "@mirrordb/types";
 
 const SSL_REQUEST_CODE = 80877103;
 const GSS_REQUEST_CODE = 80877104;
+
+type ParsedPostgresUri = {
+    host: string | null
+    port: number | null
+    dbname: string | null
+    username: string | null
+    password: string | null
+}
+
+export function parsePostgresUri(uri: string): ParsedPostgresUri {
+    const url = new URL(uri)
+
+    const dbname = url.pathname ? url.pathname.replace(/^\/+/, "") : null
+
+    return {
+        host: url.hostname || null,
+        port: url.port ? Number(url.port) : null,
+        dbname,
+        username: url.username || null,
+        password: url.password || null,
+    }
+}
 
 // ── Buffered socket reader ──────────────────────────────────────────
 
@@ -243,6 +266,7 @@ export async function postgresTunnel({
     clone,
     emit,
     isSessionAlive,
+    credentialType
 }: TunnelParams) {
     emit("tunnel:allocating_port");
 
@@ -251,6 +275,8 @@ export async function postgresTunnel({
     if (!clone.forkedDatabase?.encryptedPayload) {
         throw new Error("No connection information found for forked database");
     }
+
+    // const sourceDbCredentialType = 
 
     const decryptedPayload = decrypt(clone.forkedDatabase.encryptedPayload);
     const connectionInfo = JSON.parse(decryptedPayload);
@@ -301,10 +327,11 @@ export async function postgresTunnel({
         server.listen(localPort, "127.0.0.1", () => resolve());
         server.on("error", reject);
     });
-
+    const tunnelUri = `postgresql://localhost:${localPort}/${friendlyName}`;
+    const dbParts = parsePostgresUri(tunnelUri)
     emit("tunnel:ready", {
         url: `postgresql://localhost:${localPort}/${friendlyName}`,
-        port: localPort,
+        ...(credentialType === DbCredentialsMethod.HOST ? dbParts : {})
     });
 
     while (isSessionAlive()) {

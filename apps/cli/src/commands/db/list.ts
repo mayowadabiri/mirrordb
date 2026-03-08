@@ -3,6 +3,7 @@ import { authGuard } from "../../hooks/authGuard.js";
 import { listDatabases } from "../../api/db.js";
 import chalk from "chalk";
 import Table from "cli-table3";
+import { mfaGuard } from "../../hooks/mfaGuard.js";
 
 export function listDatabasesCommand(): Command {
     const command = new Command("list");
@@ -11,6 +12,7 @@ export function listDatabasesCommand(): Command {
         .description("List databases")
         .usage("mirrordb db list")
         .hook("preAction", authGuard)
+        .hook("preAction", mfaGuard)
         .action(async () => {
             console.log("Listing databases...")
             const db = await listDatabases();

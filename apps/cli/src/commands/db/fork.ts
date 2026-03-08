@@ -163,14 +163,39 @@ async function waitForForkCompletion(cloneId: string): Promise<string | null> {
     return finalStatus;
 }
 
+function displayTunnelInfo(payload: Record<string, unknown>) {
+    const labelMap: Record<string, string> = {
+        url: "Connection URL",
+        host: "Host",
+        port: "Port",
+        dbname: "Database",
+        username: "Username",
+        password: "Password",
+    };
+
+    const entries = Object.entries(payload).filter(
+        ([, value]) => value != null && value !== "",
+    );
+
+    if (entries.length > 0) {
+        const table = new Table({ colWidths: [20, 50] });
+        for (const [key, value] of entries) {
+            table.push([
+                chalk.gray(labelMap[key] ?? key),
+                chalk.cyan(String(value)),
+            ]);
+        }
+        console.log(table.toString());
+    }
+}
+
 async function startTunnel(cloneId: string) {
     const abortController = new AbortController();
 
     await tunnelCloneDb(cloneId, abortController.signal, (event: string, payload: { url: string; message: string }) => {
         if (event === "tunnel:ready") {
             console.log(chalk.green("\n✓ Tunnel ready\n"));
-            console.log(chalk.white("Connect using:"));
-            console.log(chalk.cyan(payload.url));
+            displayTunnelInfo(payload as unknown as Record<string, unknown>);
             console.log(chalk.gray("\nPress Ctrl+C to stop the tunnel.\n"));
         } else if (event === "tunnel:log") {
             process.stdout.write(payload.message);
@@ -189,7 +214,11 @@ function handleForkError(error: unknown) {
     if (code === "DATABASE_NOT_FOUND") {
         console.log(chalk.red("Database not found"));
     }
-    console.log(chalk.red("Failed to fork database"));
+    if (code === "DATABASE_CREDENTIALS_NOT_FOUND") {
+        console.log(chalk.red("Database credentials not found"));
+    } else {
+        console.log(chalk.red("Failed to fork database"));
+    }
     process.exit(0);
 }
 

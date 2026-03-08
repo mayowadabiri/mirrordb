@@ -1,5 +1,6 @@
 import net from "net";
 import { DatabaseClone, ForkedDatabase, Database } from "@mirrordb/database";
+import { DbCredentialsMethod } from "@mirrordb/types";
 
 export interface TunnelParams {
     clone: DatabaseClone & {
@@ -8,6 +9,7 @@ export interface TunnelParams {
     };
     emit: (event: string, payload?: any) => void;
     isSessionAlive: () => boolean;
+    credentialType: DbCredentialsMethod;
 }
 
 export async function getFreePort(): Promise<number> {
